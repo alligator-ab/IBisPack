@@ -6,9 +6,11 @@
 
 ## 🚀 Features
 
-- Modular AFL functions for strategy development
-- Predefined templates for indicators and signal generation
-- Utility scripts for file handling, variable management, and logging
+- IBis COM server to access TWS API from any COM client
+- extended ticker syntax to simplify instrument specification
+- AFL wrapper library (IBis.afl) for easy access to IBis COM API
+- Tests and samples to illustrate IBis usage
+- Custom version of TWSSocketClient.dll to handle edge cases of (wrong) prices rounding for instruments requiring 8+ decimals
 - Compatible with AmiBroker 6.3+ (6.93+ recommended)
 
 ---
