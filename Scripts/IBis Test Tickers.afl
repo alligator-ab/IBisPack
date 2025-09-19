@@ -1,0 +1,44 @@
+/*
+Tickers used for testing
+// Ex:
+	prefixList = "ZN   ,ZT   ,TN   ,FGBL,FOAT,FBTP,VIX ,ES,M2K,IBM,AAPL"; 
+	tickers = FindTickers(prefixList);
+*/
+
+_N( AllTickers = CategoryGetSymbols(categoryAll, 0) );
+
+function GetAllTickers() {
+	return AllTickers;
+}
+
+// returns all matching tickers (ticker prefix == string)
+function FindTickers(list) {
+	global AllTickers;
+	local i, j, n, p, s, s2, res;
+	res = "";
+	p = StrCount(list, ",");
+	for(i = p; i >= 0; --i) {
+		s = StrExtract(list, i);
+		n = StrLen(s);
+		for(j = 0; (s2 = StrExtract(AllTickers, j)) != ""; ++j) {
+			if (StrLeft(s2, n) == s) {
+				if (res == "") res = s2; else res = s2 + "," + res;
+			}
+		}
+	}
+	return res;
+}
+
+// find 1st matching ticker
+function FindTicker(s) {
+	global AllTickers;
+	local i, j, n, p, s, s2, res;
+	res = "";
+	n = StrLen(s);
+	for(j = 0; (s2 = StrExtract(AllTickers, j)) != ""; ++j) {
+		if (StrLeft(s2, n) == s) {
+			res = s2; break;
+		}
+	}
+	return res;
+}

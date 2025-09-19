@@ -1,0 +1,215 @@
+// IBis Test Modify with PlaceOrderEx
+_SECTION_BEGIN("IBis Test Modify with ModifyOrder()");
+
+#include "Formulas\Custom\IBis Test Tickers.afl";
+#include "Formulas\Custom\GfxText.afl";
+
+///////////////////
+ibis = GetTradingInterface("IBis");
+
+Title = "IBis Test Modify with PlaceOrderEx";
+
+/*
+order = ParamStr("Order", "Ticker:'MESZ2-GLOBEX-FUT', Size:1, TIF: 'DAY', Type : 'LMT', Action: 'BUY', LimitPrice: 1730");
+modif = ParamStr("Modifications", "Size:2, LimitPrice: 1725");
+//*/
+
+product = ParamList("Ticker", Name()+"|AMD|M2K");
+action = ParamList("Action", "BUY|SELL");
+size = ParamStr("Size (maybe decimal)", "10.5"); // size = StrToNum(size);
+otype = ParamList("Order Type", "LMT|MKT|STP");
+oPrice = ParamStr("Limit Price", ""+LastValue(C)); 
+oTif = ParamList("TIF", "DAY|GTC|GTD|DTC");
+newsize = ParamStr("Modified Size", "20.5");
+
+send = ParamTrigger("Send Order"," [ CLICK ONCE TO SEND ] ");
+modify = ParamTrigger("Modify Order", " [ CLICK ONCE TO MODIFY ] ");
+cancel = ParamTrigger("Cancel Order", " [ CLICK ONCE TO CANCEL ] ");
+cancelPending = ParamTrigger("Cancel All Pending Orders", " [ CLICK ONCE TO CANCEL ALL ] ");
+closeAll = ParamTrigger("Close All Open Positions", " [ CLICK ONCE TO CLOSE ALL ] ");
+
+ticker = StrExtract(FindTickers(product), 0); if (ticker != "") product = ticker;
+ 
+procedure StoreId(id) {
+	StaticVarSetText("IBisTestModifyOrderId"+GetChartID(), ""+id);
+}
+
+function FetchId() {
+	return StaticVarGetText("IBisTestModifyOrderId"+GetChartID());
+}
+
+procedure StoreOrder(order) {
+	StaticVarSetText("IBisTestModifyOrderLastOrder"+GetChartID(), order);
+}
+
+function FetchOrder() {
+	return StaticVarGetText("IBisTestModifyOrderLastOrder"+GetChartID());
+}
+
+
+function IsConnected() {
+	global ibis;
+	return ibis && ibis.IsConnected();
+}
+
+function PriceToStr(price) {
+	local res, f, fmt;
+	f = frac(512*frac(price));
+	if (f == 0) fmt = "%12g"; else fmt = "%7g"; //else fmt = "       %7g";
+	res = StrFormat(fmt, price);
+	return res;
+}
+
+function sendOrder(tit) {
+	global ibis, oType, oPrice, action, size, product, oTif;
+	local id, order, price;
+	id = "";
+	if (ibis && ibis.IsConnected()) {
+		price = StrToNum(oPrice);
+		order = "Action:"+action+",Size:"+size+",Ticker:'"+product+"',Type:'"+oType+"',LimitPrice:"+price+",TIF:'"+oTif+"'";
+		if (tit != "") PopupWindow("Sending Order:\n\n"+order, tit, 30);
+		id = ibis.PlaceOrderEx("Transmit:False,"+order);
+		
+		//id = ibis.PlaceOrder(product, action, size, oType, price, "0.0", oTif, False, 0.1); // price or oPrice work !
+		//id = ibis.ModifyOrder(0, product, action, size, oType, price, 0.0, oTif, False);
+		
+		PopupWindow("Last Order Id: "+id+"\nOrder:\n"+order, tit+" SENDING ORDER", 30);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Send Order:\n\n"+order, tit+" IBIS NOT CONNECTED", 30);
+	}
+	return id;
+}
+
+function modifyOrder(id, newsize) {
+	local txt;
+	// txt = "orderId: "+id+", "+order;
+	// sendOrder("modifyOrder: "+txt, txt);
+	ibis.ModifyOrder(id, product, action, newsize, oType, oPrice, 0, oTif, False);
+}
+
+procedure cancelOrder(tit, id) {
+	global ibis;
+	if ((id != "") && ibis && ibis.IsConnected()) {
+		if (tit != "") PopupWindow("Cancelling Order:\n\n"+order, tit, 30);
+		ibis.CancelOrder(id);
+	}
+}
+
+procedure cancelAllPendingOrders(product) {
+	global ibis;
+	if (ibis && ibis.IsConnected()) {
+		PopupWindow("Cancelling All Pending Orders for "+product, "Cancel All Pending Orders for "+product, 30);
+		if (product != "") ibis.CancelAllPendingOrders(product); else ibis.CancelAllPendingOrders(""); 
+	}
+}
+
+procedure closeAllOpenPositions(product) {
+	global ibis;
+	if (ibis && ibis.IsConnected()) {
+		PopupWindow("Closing All Positions in "+product, "Close All Positions in "+product, 30);
+		ibis.CloseAllOpenPositions(product);
+	}
+}
+
+procedure Transmit() {
+	global ibis;
+	local id;
+	if (ibis && ibis.IsConnected()) {
+		id = FetchId();
+		PopupWindow("Transmit last Order id "+id+"\n\nWas:\n"+FetchOrder(), "Transmit", 30);
+		ibis.Transmit(id);
+	}
+}
+
+function GetPositionSize(tit, ticker) {
+	global ibis;
+	local pos;
+	pos = "";
+	if (ibis && ibis.IsConnected()) {
+		pos = ibis.GetPositionSize(ticker);
+		if (tit != "") PopupWindow("Position for "+ticker+ " = "+pos, tit, 30);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Get Position:\n\n"+ticker, "IBIS NOT CONNECTED", 30);
+	}
+	return pos;
+}
+
+
+/////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
+
+GfxText("Test of Modify Order using ModifyOrder()");
+GfxText("Test of FRACTIONAL QUANTITY");
+
+//posticker = ParamStr("Position/Ticker", Name());
+posticker = product;
+
+if (IsConnected()) {
+
+	if (send) {
+		id = sendOrder("Sending Order");
+		if (id != "") {
+			StoreId(id);
+			StoreOrder(order);
+		}
+	} else
+	if (modify) {
+		id = FetchId();
+		 //modifyOrder("Modify Order", id, modif); // HINT: DO NOT USE ONLY MODIFIED FIELDS !!!
+			// TWS DOES NOT ACCEPT THEM AS SOME FIELDS ARE UNSPECIFIED. 
+			// IN PARTICULAR EXCHANGE OF OPEN ORDER IS REQUIRED (BUT NOT EXCLUSIVELY) !
+		lastOrder = FetchOrder();
+		// modifyOrder("Modify Order", id, lastOrder + ", " + modif);
+		modifyOrder(id, newsize);
+	} else 
+	if (cancel) {
+		id = FetchId();
+		cancelOrder("", id);
+	} else 
+	if (cancelPending) {
+		cancelAllPendingOrders(product);
+	} else 
+	if (closeAll) {
+		closeAllOpenPositions(product);
+	}
+	
+	ticker = posticker; // "MESZ2-GLOBEX-FUT";
+	pos = GetPositionSize("", ticker);
+	GfxText("Position for "+ticker+": "+pos+"\n");
+	
+	if (1-ParamToggle("Tab to use", "Executions|Orders", 1)) {
+		list = ibis.GetExecList(0, ""); 
+		for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+			id = StrToNum(s);
+			stat = ibis.GetExecInfo(id, "Status");
+			symb = ibis.GetExecInfo(id, "Symbol"); symb = ""+symb; if (symb == "0") symb = "????";
+			lmt = "";
+			filled = ibis.GetExecInfo(id, "Filled");
+			rem = ibis.GetExecInfo(id, "Remaining");
+			//ids = ibis.GetOrdersList("ID", "");
+			lmt = ibis.GetOrderInfo(s, "Limit Price"); aux = ibis.GetOrderInfo(s, "Stop Price");		
+			s = StrFormat("%5s %20s %20s %5g/%g %18f %18f", s, symb, stat, filled, rem, lmt, aux);
+			if (stat == "Error") GfxError(s); else GfxText(s);// "%4s %10s %10s %3s/%3s"
+		}
+	} else {
+		list = ibis.GetOrdersList("ID", "");
+		for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+			id = StrToNum(s);
+			stat = ibis.GetOrderInfo(id, "Status");
+			symb = ibis.GetOrderInfo(id, "Symbol"); symb = ""+symb; if (symb == "0") symb = "????";
+			lmt = "";
+			filled = ibis.GetOrderInfo(id, "Filled");
+			rem = ibis.GetOrderInfo(id, "Qty");
+			//ids = ibis.GetOrdersList("ID", "");
+			lmt = ibis.GetOrderInfo(s, "Limit Price"); aux = ibis.GetOrderInfo(s, "Stop Price");		
+			lmt = PriceToStr(lmt); aux = PriceToStr(aux);
+			type = ""+ibis.GetOrderInfo(s, "Type,Status,ID"); // Test of multiple fields
+			s = StrFormat("%5s %30s     %12s %5g/%-5g %7s %15s %15s", s, symb, stat, filled, rem, type, lmt, aux);
+			if (stat == "Error") GfxError(s); else GfxText(s);// "%4s %10s %10s %3s/%3s"
+		}
+	}
+} else {
+	GfxError("Not connected to TWS");
+}
+
+_SECTION_END();

@@ -1,0 +1,81 @@
+FAQ
+===
+( Notes: 
+License
+MIT-like freeware/open source.
+
+Authors
+fork of Tomasz Janesko' IBController. Alligator for BrokerIBis
+)
+
+GENERAL
+=======
+1. When I try to call BrokerIBis from another software (through COM API) I get a null handle.
+	You must register BrokerIBis.exe before using it. Run BrokerIBis.reg (right-click).
+
+PLACEORDEREX():
+============
+1. What is priority between fields ?
+	Some fields 'overlap'. In that case, fields at the right take priority. However there's 1 exception: exchange.
+	This field should not be modified by Ticker for instance. 
+	Fields can be specified several times, only the latest/rightest matters. 
+
+2. Where is the doc for PlaceOrderEx ?
+	PlaceOrderEx() originally supported a JSON syntax. It's been relaxed in following versions.
+	Now "orderType=MKT action=BUY size=100 ticker=IBM" should work.
+	At the moment new fields are added to PlaceOrderEx (Backward compatible).
+	Almost 300 fields are available. Every field in Order Class and some in contract class.
+	Read RELEASE NOTES & JsonIndex.h.
+
+3. How to identify an instrument with PlaceOrderEx() ?
+	First it supports PlaceOrder() ticker field. So any IBKR ticker should work.
+	Second it also supports IB unique contract identifer (a long) which can be retrieved from TWS (right click instrument)
+	It also supports ISIN & other schemes using secID & secIDType fields.
+	Finally it's possible to disambiguify a ticker by specifying a multiplier ('multiplier' field)
+
+4. Are PlaceOrderEx() fields case-sensitive ?
+	Yes & No. subfields (in objects/arrays) are case-sensitive, but not fields at root level.
+
+5. How to specify traded contract ?
+	Depends on trade type. For outright trades, use
+	either	Ticker: 'ESM2-GLOBEX-FUT' ...
+	or		Symbol: 'ES', expiry: '202206', secType: 'FUT', primaryExchange: 'GLOBEX', currency: 'USD'
+	both are equivalent. 
+	It's better to use primaryExchange to specify a contract and Exchange to specify destination (or route, eg SMART)
+
+6. How to use IB algos ?
+	Here are a few samples:
+	Adaptive:
+		algoStrategy: 'Adaptive', algoParams: { adaptivePriority: 'Normal' }, 
+			Ticker:'ZF   JUN 22-ECBOT-FUT', Size:1, TIF: 'DAY', Type : 'LMT', Action: 'BUY', LimitPrice: 113.5078125, Transmit: False
+
+	Midprice:
+		Action: 'BUY', Ticker:'IBM', Size:100, TIF: 'DAY', Type: 'MIDPRICE', Transmit:False
+
+	VWAP:
+		algoStrategy: 'Vwap', algoParams: { maxPctVol: '0.1', startTime: '09:45:30 EST', endTime: '15:15:30 EST', allowPastEndTime: '0', noTakeLiq:'1',
+		Transmit: False, Action: 'BUY', Ticker:'ZF   JUN 22-ECBOT-FUT', Size:50, TIF: 'DAY', Type: 'LMT', LimitPrice: 113
+
+7. How to trade spreads ?
+	(read also https://interactivebrokers.github.io/tws-api/spread_contracts.html 
+			and https://interactivebrokers.github.io/tws-api/classIBApi_1_1ComboLeg.html !)
+	Here is equivalent for last sample:
+
+	symbol: 'CL.BZ', secType: 'BAG', currency: 'USD', exchange: 'NYMEX',
+	comboLegs: [ { conId: 47207310, action: 'BUY', ratio: 1, exchange: 'NYMEX' },
+				 { conId: 47195961, action: 'SELL', ratio: 1, exchange: 'NYMEX' } ]
+
+	Or: 
+
+	symbol: 'CL.BZ', secType: 'BAG', currency: 'USD', exchange: 'NYMEX',
+	comboLegs: [ { conId: 47207310, ratio: 1 },
+				 { conId: 47195961, ratio: -1 } ]
+
+	When not specified, exchange is the one specified BEFORE for the contract and action depends on ratio sign.
+
+8. How to specify prices for each leg in a combo limit order ?
+	(read https://interactivebrokers.github.io/tws-api/basic_orders.html#limitordercombolegprices )
+	Provides each leg prices in an array (delimited by [ and  ]) and eventually specify if it's guaranteed eg
+
+		orderType:'LMT', orderComboLegs:[ 123.0, 35.5 ], nonGuaranteed: '1'
+

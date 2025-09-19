@@ -1,0 +1,164 @@
+/*
+// TODO: Order Conditioning (Margin, Percentage, Time, Volume) + Algorithms + IBKRATS
+
+// LIBRARY -- FOR INCLUSION
+#include_once "Formulas\Custom\IBIsOrder.afl"
+
+if 'qty' < 0, SELL. if 'qty' > 0, BUY
+PlaceOrderType(qty, contract, type, lmtPrice, auxPrice, mintick, aux);
+
+NB: Use aux field to specify a parentId: aux = aux + ",parentId:"+parentId
+
+order types: MKT,MIT,MOC,MOO,LMT,STP,STP LMT,STP PRT,LIT,LOC,PEG MKT,PEG STK,REL,BOX TOP,PASSV REL,PEG MID,MTL,
+			MKT PRT,VOL,REL+LMT,REL+MKT,TRAIL,TRAIL LIMIT,PEG BENCH
+
+trigger method: fill field TriggerMethod with a valid value from 0 to 8 (eg 3 for double last) 2 is default except for OPT & CASH (CFD ? WAR ?)
+	read trigger_method_limit.html. 0 is default value for the instrument. 1 double bid/ask etc
+						aux = aux + ",triggerMethod:2"
+	
+Special Basic Order Types: use aux field to specify them:
+
+forex cash qty order: 	aux = aux + ",cashQty:"+cashQty; // ONLY for forex orders quantity placed in denomination of 2nd currency
+discretionary orders: 	aux = aux + ",discretionaryAmt:"+amount	// for STK only
+sweep to fill orders: 	aux = aux + ",sweepToFill:true"	// ONLY for SMART on CFD, STK, WAR
+block:					aux = aux + ",blockOrder:true"
+limit on Open orders:	aux = aux + ",tif:'OPG'"		// LOO type, for CFD, STK, OPT, WAR
+market to limit:		orderType:'MTL'					// MKT or LMT at price for MKT
+mkt with protection:	orderType:'MKT PRT'				// MKT or LMT at bid/ask
+volatility:				orderType:'VOL',volatility:"+volatilityPercent+",volatilityType:"+volaType	// ONLY FOP and OPT					
+
+auction order type: 	",TIF:'AUC',orderType:MTL"		// FUT & STK, for execution during pre-market opening at COP or LMT at open
+pegged-to-stock: 		",orderType:'PEG STK',delta:"+delta+",stockRefPrice:"+refPrice+",startingPrice:"+startingPrice
+hedge:					
+
+Combos:
+------
+non-guaranteed combo: 	",smartComboRoutingParams:1"
+leg prices:				",orderComboLegs:[{ conId: ..., price: ...}...]"		// price field only for LMT combos !
+relative limit combo:	",orderType:'REL+LMT'"
+relative market combo:	",orderType:'REL+MKT'"
+
+Trail:
+-----
+trailing stop: ",orderType:'TRAIL',trailingPercent:"+trailingPercent+",trailStopPrice:"+trailStopPrice
+trailing stop limit: ",orderType:'TRAIL LIMIT',lmtPriceOffset:"+lmtPriceOffset+",trailStopPrice:"+trailStopPrice
+						+ ",auxPrice:"+trailingAmount
+						
+Pegged to Benchmark: as in manual 
+	https://interactivebrokers.github.io/tws-api/basic_orders.html#pegged_benchmark
+	
+*/
+// requires:
+#include_once "Formulas\Custom\IBis.afl";
+
+// TODO: 
+/*
+function PlaceHedgeOrder(action, hedge, parentOrderId);
+function PlaceOCAOrder(group, type, idList);	// place members (transmit false) before, and use this to modify and transmit
+*/
+// turns parent order in STP order if trigger touched - parentQty < 0 if parent order is SELL
+function AdjustStop(parentQty, parentId, attachedOrderStopPrice, triggerPrice, adjustedStopPrice) {
+	local order, action, qty;
+	if (parentQty < 0) action = "BUY"; else action = "SELL";
+	qty = abs(parentQty);
+	order = ",orderType:'STP',size:"+qty+",auxPrice:"+attachedOrderStopPrice+",parentId:"+parentId+
+			",triggerPrice:"+triggerPrice+",adjustedStopPrice:"+adjustedStopPrice;
+	return PlaceOrderEx(order, "");
+}
+
+function AdjustStopLimit(parentQty, parentId, attachedOrderStopPrice, triggerPrice, adjustedStopPrice, adjustedStopLimitPrice) {
+	local order, action, qty;
+	if (parentQty < 0) action = "BUY"; else action = "SELL";
+	qty = abs(parentQty);
+	order = ",orderType:'STP LMT',size:"+qty+",auxPrice:"+attachedOrderStopPrice+",parentId:"+parentId+
+			",triggerPrice:"+triggerPrice+",adjustedStopPrice:"+adjustedStopPrice+
+			",adjustedStopLimitPrice:"+adjustedStopLimitPrice;
+	return PlaceOrderEx(order, "");
+}
+
+function AdjustTrail(parentQty, parentId, attachedOrderStopPrice, triggerPrice, adjustedStopPrice, trailUnit, adjustedTrailAmount) {
+	local order, action, qty;
+	if (parentQty < 0) action = "BUY"; else action = "SELL";
+	qty = abs(parentQty);
+	order = ",orderType:'TRAIL',size:"+qty+",auxPrice:"+attachedOrderStopPrice+",parentId:"+parentId+
+			",triggerPrice:"+triggerPrice+",adjustedStopPrice:"+adjustedStopPrice+
+			",adjustedTrailAmount:"+adjustedTrailAmount+",adjustableTrailingUnit:"+trailUnit;
+	return PlaceOrderEx(order, "");
+}
+
+function PlaceHedgeOrder(action, hedge, parentOrderId) {
+	local order;
+	order = "orderType:'MKT',size:0,hedgeType:'F',parentId:"+parentOrderId+",action:"+action;	// size == 0 !!!
+	return PlaceOrderEx(order, hedge);
+}
+
+function PlaceOCAOrder(group, type, idList) {
+	local oca, i, s, id;
+	oca = ",ocaGroup:"+group+",ocaType:"+type;
+	for(i = 0; (s = StrExtract(idList,i)) != ""; ++i) {
+		id = StrToNum(s);
+		ModifyOrder(id, oca);
+	}
+	for(i = 0; (s = StrExtract(idList,i)) != ""; ++i) {
+		id = StrToNum(s);
+		ModifyOrder(id, ",transmit:True");
+	}
+	return idList;
+}
+
+function PlaceOrderType(qty, contract, type, lmtPrice, auxPrice, mintick, aux) {
+	local order, dir, id;
+	if (qty) {
+		order = "Transmit:False,TIF:'GTC',Ticksize:0.01,";	// default
+		if (qty < 0) dir = "SELL"; else dir = "BUY";
+		order = order + "OrderType:"+type+",Size:"+abs(qty)+",Action:'"+dir+"',LimitPrice:"+lmtPrice+",AuxPrice:"+auxPrice;
+		if (StrToNum(""+minTick) > 0) order = order+",TickSize:"+minTick;
+		order = order + "," + aux;
+		id = PlaceOrderEx(order, contract);
+	} else id = "0";
+	return id;
+}
+
+function PlaceMarketOrder(qty, contract, mintick, aux) {
+	return PlaceOrderType(qty, contract, "MKT", 0, 0, mintick, aux);
+}
+
+function PlaceLimitOrder(qty, contract, limitPrice, mintick, aux) {
+	return PlaceOrderType(qty, contract, "LMT", limitPrice, 0, mintick, aux);
+}
+
+function PlaceStopOrder(qty, contract, stopPrice, mintick, aux) {
+	return PlaceOrderType(qty, contract, "STP", 0, stopPrice, mintick, aux);
+}
+
+function PlaceStopLimitOrder(qty, contract, stopPrice, limitPrice, mintick, aux) {
+	return PlaceOrderType(qty, contract, "STP LMT", lmtPrice, stopPrice, mintick, aux);
+}
+
+function PlaceBracketOrder(qty, contract, type, lmtEntry, stopLoss, target, mintick, aux) {
+	local parentId, stopId, targetId;
+	aux = aux + ",transmit:false";
+	parentId = PlaceOrderType(qty, contract, type, lmtEntry, 0, mintick, aux);
+	aux = aux+",parentId:"+parentId;
+	targetId = PlaceLimitOrder(-qty, contract, target, mintick, aux);
+	//aux = aux+",parentId:"+parentId+",transmit:false";
+	stopId = PlaceStopOrder(-qty, contract, stopLoss, mintick, aux);
+	return ""+stopId+","+targetId+","+parentId;
+}
+
+function PlaceBracketOrder2(qty, contract, type, lmtEntry, stopLoss, stopLoss2, target, target2, mintick, aux) {
+	local parentId, stopId, targetId, stopId2, targetId2, ndir, qty1, qty2;
+	qty1 = round(0.5*qty); qty2 = qty - qty1;
+	aux = aux + ",transmit:false";
+	parentId = PlaceOrderType(qty, contract, type, lmtEntry, 0, mintick, aux);
+	aux = aux+",parentId:"+parentId;
+	targetId = PlaceLimitOrder(-qty1, contract, target, mintick, aux);
+	targetId2 = PlaceLimitOrder(-qty2, contract, target2, mintick, aux);
+	stopId = PlaceStopOrder(-qty1, contract, stopLoss, mintick, aux);
+	stopId2 = PlaceStopOrder(-qty2, contract, stopLoss2, mintick, aux);
+	return ""+stopId2+","+stopId+","+targetId2+","+targetId+","+parentId;
+}
+
+// TODO:
+// hedge, pair
+

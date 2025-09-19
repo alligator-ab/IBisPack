@@ -1,0 +1,78 @@
+PlaceOrderEx() USAGE
+==============
+
+Allows to fully specify contract and order for placing/modifying orders with IB.
+All you have to do consists in filling required fields according to a relaxed JSON syntax.
+JSON is a simple format to describe data. All you need is specify a comma-separated sequence
+of key/value pairs, each pair written key:'value'.
+For instance "orderType:'MKT',size:1,action:'BUY',ticker:'FGBL MAR 23-EUREX-FUT-EUR',Transmit:False"
+Append "orderId:20' if you want to specify order 20 (for instance to modify it)
+Both contract and order are specified in a single string.
+
+All fields in Order class doc may be used.
+https://interactivebrokers.github.io/tws-api/classIBApi_1_1Order.html
+
+All fields in Contract class doc may be used:
+https://interactivebrokers.github.io/tws-api/classIBApi_1_1Contract.html
+
+More simply, use 
+	ticker:'ESH3-CME-FUT' 
+to specify a contract to trade.
+
+It's possible (but discouraged) to specify successively several values for the same field/key. The last value prevails, previous ones are discarded.
+For instance, if you specify 'Transmit:true' at head of sring order and 'Transmit:false' at tail, the order won't be transmitted.
+It's best to place commas between fields, such as;
+	action:'BUY',orderType:'MKT',...
+However parsing is far from strict and:
+	action:BUY  orderType:MKT
+is accepted too. It's not guaranteed that the latter will still be possible in future versions.
+
+IT IS HIGHLY ENCOURAGED TO ENCAPSULATE ALL API CALLS IN SIMPLE FUNCTIONS. IBIS API MAY CHANGE IN THE FUTURE.
+
+For instance:
+
+ibis = GetTradingInterface("IBis");
+
+function IBisPlaceOrderEx(s) {
+	global ibis;
+	local id;
+	if (ibis && ibis.IsConnected()) {
+		id = ibis.PlaceOrderEx("transmit:false, "+s);	// do not transmit order except if it's explicit
+	} else id = "0";
+	return id;
+}
+
+function PlaceMktOrder(product, size) {
+	local id, action, s;
+	id = "";
+	if (size > 0) action = "BUY"; else action = "SELL";
+	s = StrFormat(",action:'%s', size:%d, ticker:'%s',", action; abs(size), product); 
+	id = IBisPlaceOrderEx(s);
+	// possibly signal/alert/log error here
+	// if (StrToNum(""+id) == 0)) { }
+	return id;
+}
+
+Usual Fields for orders: 
+	action, totalQuantity, orderType, lmtPrice, auxPrice, tif, transmit,
+
+For structured/complex orders:
+	parentId, ocaGroup, account, origin, orderRef
+
+See also:
+	hidden, autoCancelParent, displaySize, blockOrder, 
+	sweepToFill, triggerMethod, outsideRth, randomizeSize, randomizePrice, 
+
+Finally:	
+	whatIf,
+allows you to get margin impact of an order without effectively sending it.
+
+For multilegs/BAG orders, specify for each leg: conId, ratio, action, 
+		exchange, price,
+
+Pro users:
+	clearingAccount, clearingIntent, settlingFirm, extOperator, origin, manualOrderTime, solicited, openClose, shortSaleSlot, designatedLocation, exemptCode, 
+	modelCode, faGroup, faProfile, faMethod, faPercentage
+
+
+

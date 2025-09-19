@@ -1,0 +1,55 @@
+_SECTION_BEGIN("IBis Exec Test");
+#include_once "Formulas\Custom\GfxText.afl";
+
+_N( s = "Test of new IBController features: Exec() various forms\n\n" );
+Title = "";
+
+ibis = GetTradingInterface("IBis");
+
+procedure displayRequest(instr, sep, res) {
+	local i, s;
+	GfxTextTab(StrFormat("Request '%s':", instr), 1);
+	for(i = 0; (s = StrExtract(res, i, sep)) != ""; ++i) GfxTextTab(s, 2);
+}
+
+procedure Exec(instr, sep) {
+	if (ibis && ibis.IsConnected()) {
+		res = ibis.Exec(instr); 
+		displayRequest(instr, sep, res);
+	}
+}
+procedure ExecCurrentTime() {
+	if (ibis && ibis.IsConnected()) {
+		displayRequest("CurrentTime", '\n', ibis.Exec("CurrentTime"));
+	}
+}
+
+GfxTextTab(s,1);
+Exec("Connection", ',');
+Exec("CompletedOrders", ';');
+Exec("Messages", '|');
+Exec("Errors", ',');
+Exec("UserInfo", ',');
+Exec("CurrentTime", ',');
+Exec("Info", '\n');
+Exec("NewsProviders", '\n');
+
+/*
+if (ParamTrigger("Test Precision", " [ CLICK ONCE TO TRIGGER ] ")) {
+	// Exec("TESTPRECISION", '\n');
+	StaticVarSetText("ExecTestPrecision", ibis.Exec("TestPrecision"));
+}
+displayRequest("TestPrecision", '\n', StaticVarGetText("ExecTestPrecision"));
+//*/
+/* **************************************************** */
+
+num = Param("Max num errors", 5, 1, 10);
+fields = Param("fields", 2, 0, 2);
+
+GfxTextTab(" \n_____________________________________________________________________________________________\n",1);
+GfxTextTab(s,0);
+errors = ibis.LastErrors(num, fields);
+GfxTextTab("Last Errors:",1);
+GfxTextTab(errors, 2);
+
+_SECTION_END();

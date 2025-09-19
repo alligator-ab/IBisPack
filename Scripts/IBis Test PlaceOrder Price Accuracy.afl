@@ -1,0 +1,196 @@
+_SECTION_BEGIN("IBis Test PlaceOrder Price Accuracy");
+#include_once "Formulas\Custom\GfxText.afl";
+#include_once "Formulas\Custom\IBis Test Tickers.afl";
+
+_N( s = "Test of IBis features: Sending Orders with 'problematic' prices (due to precision)\n\n" );
+
+_N( orderString = " TIF: 'DAY', Type : 'LMT', Action: 'BUY', Transmit:False" );
+
+_N( orders = "ZF   ,50,107.0078125,0.0078125|"
+	+ "ZT   ,50,102.00390625,0.00390625|"
+	+ "ZB   ,50,124.03125,0.03125|"
+	+ "EUR.USD-IDEALPRO-CASH,1000000,1.05865,0.00005|CAD.JPY-IDEALPRO-CASH,1000000,97.485,0.005|GBP.JPY-IDEALPRO-CASH,1000000,158.735,0.005|"
+	+ "NG,20,2.503,0.001|SR3,500,95.2025,0.005|"
+	+ "ES,100,3852.75,0.25|NQ,100,10903.25,0.25|CL,100,78.07,0.01|"
+);
+
+function makeOrders(orders) {
+	local res, i, order, s, ticker, pr, fr, product;
+	
+	res = "";
+	n = StrCount(orders, "|");
+	for(i = n; i >= 0; --i) {
+		order = StrExtract(orders, i, '|');
+		if (order != "") {
+			product = StrExtract(order, 0); size = StrExtract(order, 1); price = StrExtract(order, 2); tick = StrExtract(order, 3);
+			// s = StrRight(order, StrLen(order) - StrLen(product)); res = ticker + s + "|" + res;
+			ticker = StrExtract(FindTickers(product),0); 
+			if (ticker != "") {
+				pr = floor(GetRTDataForeign("Last", ticker)); if (pr == 0) pr = StrExtract(price, 0, '.'); else pr = ""+pr;
+				fr = StrExtract(price, 1, '.');
+				res = StrFormat("%s,%s,%s.%s,%s", ticker, size, pr, fr, tick) + "|" + res;
+			}
+		}
+	}
+	return res;
+}
+
+_N( orders = makeOrders(orders) ); //printf("%s",orders); //PopupWindow(StrReplace(orders, "|", "\n"), "Orders List", 30); //GfxText(orders);
+
+ibis = GetTradingInterface("IBis");
+
+procedure displayRequest(instr, sep, res) {
+	local i, s;
+	GfxText(StrFormat("Request '%s':", instr));
+	for(i = 0; (s = StrExtract(res, i, sep)) != ""; ++i) TextTab(s, 2);
+}
+
+procedure displayRequest2(instr, sep, res, tabs) {
+	local i, s;
+	if (tabs > 2) TextTab(StrFormat("Request '%s':", instr), tabs);
+	else GfxText(StrFormat("Request '%s':", instr));
+	for(i = 0; (s = StrExtract(res, i, sep)) != ""; ++i) TextTab(s, tabs);
+}
+
+procedure Exec(instr, sep) {
+	if (ibis && ibis.IsConnected()) {
+		res = ibis.Exec(instr); 
+		displayRequest(instr, sep, res);
+	}
+}
+
+
+procedure Exec2(instr, sep, tabs) {
+	if (ibis && ibis.IsConnected()) {
+		res = ibis.Exec(instr); 
+		displayRequest2(instr, sep, res, tabs);
+	}
+}
+
+function sendOrder(tit, order) {
+	global ibis, id;
+	id = "";
+	if (ibis.IsConnected()) {
+		if (tit != "") PopupWindow("Sending Order:\n\n"+order, tit, 30);
+		id = ibis.placeOrderEx("Transmit: False, "+order);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Send Order:\n\n"+order, "IBIS NOT CONNECTED", 30);
+	}
+	return id;
+}
+
+function power(n, p) {
+	local res, inv;
+	res = 1;
+	if (p < 0) { inv = 1; p = -p; } else { inv = 0; }
+	while(p) {
+		res *= n; --p;
+	}
+	if (inv) res = 1/res;
+	return res;
+}
+
+// Conversion of financial prices to string.
+// priceToStr() CORRECT IF AND ONLY IF minTick is inverse of 2**a * 10**b !
+function priceToStr(price, minTick) {
+	local neg, its, p, q, pr_int, pr_frac, pow10, exp10, sf, n, digit, i, st;
+	
+	if (price < 0) { neg = 1; price = -price; } else { neg = 0; }
+	its = round(1/minTick); p = round(price*its); 
+	pr_int = floor(p/its); q = round(p - pr_int*its); 
+	pr_frac = q/its;
+	// FIRST FIND HOW MANY POWERS OF 2 IS IN ITS ! eg .25 -> 4 -> 2**2,  .0025 -> 400 -> 2**2 * 10**2
+	n = its; while(n % 10 == 0) n = floor(n / 10); // remove powers of 10
+	pow2 = 0; exp2 = 1; while(exp2 < n) { pow2++; exp2 *= 2; } 
+	
+	its2 = round(its / exp2);
+	// THEN POWERS OF 10
+	pow10 = 0; exp10 = 1; while(exp10 < its2) { pow10++; exp10 *= 10; } // OK if & ONLY IF its is a power of 10 !!!
+	
+	// HOW MANY DIGITS FOR EXP2 ?
+	exp2_10 = 1; pow2_10 = 0; while(frac(exp2_10/exp2) > 0) { pow2_10++; exp2_10 *= 10; } // 10 !!! 
+	pr_frac *= round(exp10 * exp2_10); pr_frac = round(pr_frac); pr_frac2 = pr_frac;
+	
+	sf = "";
+	for(i = pow10+pow2_10; i > 0; --i) { // sum of powers of 10 == num of digits in fraction
+		n = power(10, i-1);
+		digit = floor(pr_frac / n);
+		sf = sf + StrFormat("%1.0f", digit);
+		pr_frac -= digit*n;
+	}
+	// remove trailing zeros 
+	n = StrLen(sf);
+	while((n > 0) && (StrRight(sf, 1) == "0")) {
+		--n; sf = StrLeft(sf, n);
+	}
+	// finally
+	if (sf == "") st = StrFormat("%.0f", pr_int); else st = StrFormat("%.0f.%s", pr_int, sf);
+	if (neg) st = "-"+st;
+	//st = st+"   exp2:"+exp2+"  exp10:"+exp10+"  exp2_10:"+exp2_10+"  pr_frac:"+pr_frac; // DEBUG
+	return st;
+}
+
+function makeOrder(s) {
+	global orderString;
+	local s, i, product, order, size, price;
+	//s = StrExtract(orders,i,'|');
+	product = StrExtract(s,0); size = StrExtract(s,1); price = StrExtract(s,2);
+	order = orderString + ", Ticker:'"+product+"', Size:"+size+", LimitPrice: "+price;
+	minTick = StrToNum(StrExtract(s,3)); if (minTick) order = "TickSize:"+minTick+", "+order;
+	if (minTick) {
+		st = priceToStr(StrToNum(price), minTick); order = order + ", LimitPrice:"+st;
+		StaticVarSetText("OrdersPrice", product+":"+st+"\n"+StaticVarGetText("OrdersPrice"));
+	}
+	return order;
+}
+
+list = "";
+
+function sendOrders(orders) {
+	global list;
+	local s, i, ids, id;
+	ids = "";
+	for(i = 0; (s = StrExtract(orders, i, '|')) != ""; ++i) {
+		//id = sendOrder(s, makeOrder(s));
+		id = sendOrder("", makeOrder(s));
+		ids = ids + id + ",";
+		list = id + "," + s + "\n" + list;
+	}
+	return ids;
+}
+
+GfxText(s);
+GfxText("PLEASE CLICK/TRIGGER BUTTON IN PARAMS TO SEND OR CANCEL ORDERS\n\n");
+
+Exec("Connection", ',');
+//Exec("Messages", '|');
+
+// Exec("UserInfo", ',');
+// Exec("CurrentTime", ',');
+if (ParamTrigger("Send Orders", " [ CLICK HERE ONCE TO SEND ] ")) {
+	ids = sendOrders(orders);
+	StaticVarSetText("IBisTestPlaceOrderAccuracyOrderIDs", ids);
+	StaticVarSetText("IBisTestPlaceOrderAccuracyOrderIDsList", list);
+}
+
+//g = gfxlogline;
+GfxText("Orders Ids:\n"+StaticVarGetText("IBisTestPlaceOrderAccuracyOrderIDsList"));
+//gfxlogline = g;
+Exec2("Errors", ',', 16);
+//gfxlogline = g;
+GfxTextTab("Orders Prices:\n"+StaticVarGetText("OrdersPrice"), 9);
+
+if (ibis && ParamTrigger("Cancel Orders", " [ CLICK HERE ONCE TO CANCEL ] ")) {
+	ids = StaticVarGetText("IBisTestPlaceOrderAccuracyOrderIDs");
+	for(i = 0; (id = StrExtract(ids, i)) != ""; ++i) {
+		ibis.CancelOrder(id);
+	}
+	ibis.Exec("ClearErrors");
+	StaticVarSetText("IBisTestPlaceOrderAccuracyOrderIDs", "");
+	StaticVarSetText("IBisTestPlaceOrderAccuracyOrderIDsList", "");
+	StaticVarSetText("OrdersPrice", "");
+}
+
+/* **************************************************** */
+
+_SECTION_END();

@@ -1,0 +1,145 @@
+_SECTION_BEGIN("IBis Test Histogram");
+
+#include "Formulas\Custom\GfxText.afl";
+
+////////////////////
+fontsize = 7;
+
+///////////////////
+ibis = GetTradingInterface("IBis");
+
+//Title = "IBis Test Histogram";
+////
+function minTick(ticker) {
+	local m;
+	m = Nz(StaticVarGet("minTick"+ticker));
+	if (m == 0) {
+		m = StrToNum(ibis.ContractDetails(ticker, "minTick")); // GfxText("mintick m = "+m);
+		if (m == 0) m = 0.01; else StaticVarSet("minTick"+ticker, m);
+	} //else GfxText("mintick found m = "+m);
+	return m;
+}
+
+function isFracQuoted(ticker) {
+	local m;
+	m = minTick(ticker); if (m == 0) m = 0.01; 
+	its = round(1/m);
+	return ((its == 8) || (its == 16) || (its == 32) || (its == 64) || (its == 128) || (its == 256));
+}
+
+function FracPrice(ticker, p) {
+	local in, fr, m, its;
+	m = minTick(ticker); its = round(1/m);
+	in = int(p); fra = round((p - in)*its)*m;
+	n = 32*fra; dec = int(n); 
+	fr = n - dec; fr8 = round(8*fr); 
+	switch(fr8) {
+		case 0: r2 = ""; break;
+		case 1: r2 = "1"; break;
+		case 2: r2 = "2"; break;
+		case 3: r2 = "3"; break;
+		case 4: r2 = "5"; break;
+		case 5: r2 = "6"; break;
+		case 6: r2 = "7"; break;
+		case 7: r2 = "8"; break;
+		default: r2 = ""; break;
+	}
+	if (dec < 10) dec = "0"+dec; else dec = ""+dec;
+	return ""+in+"'"+dec+r2;
+}
+
+function DecimalPrice(ticker, p) {
+	m = minTick(ticker); its = round(1/m);
+	in = int(p); fr = round((p - in)*its)*m;
+	if (fr == 0) res = ""+in; else 
+	res = ""+(in + fr); 
+	return res;
+}
+
+function PriceToStr(ticker, p) {
+	local m, res;
+	if (isFracQuoted(ticker)) res = FracPrice(ticker, p); 
+	else res = DecimalPrice(ticker, p);
+	return res;
+}
+	
+ticker = Name();
+
+ndays = Param("n days", 1, 1, 5);
+width = Param("Width", 250, 0, 2000, 50);
+// x = Param("x", 0, 1200, 2000, 50);
+dir = ParamToggle("direction", "Right|Left");
+rth = ParamToggle("RTH", "No|Yes");
+autorefresh = ParamToggle("auto-refresh ?", "No|Yes",1);
+
+GfxText(StrFormat("IBis Test of HistogramData %.0f days rth:%.0f refresh:%.0f", ndays, rth, autorefresh));
+
+
+function GfxHistogram(x, width, dir, ticker, rth, period, refresh) {
+	global ibis;
+	local hist, i, total, maxi, prmax, price, size, color, last, d;
+	
+	hist = ibis.HistogramData(ticker, rth, period, refresh); // refresh
+	//hist = ibis.HistogramData(ticker, rth, period); // = false
+	
+	if (hist != "") {
+		GfxSetCoordsMode(1); 
+		color = colorGreen; GfxSelectPen(color, 1); //GfxSelectSolidBrush(color); GfxSetBkColor(color);
+		d = sign(LastValue(dir));
+		total = 0; maxi = 0; prmax = 0;
+		for(i = 0; (s = StrExtract(hist, i, '\n')) != ""; ++i) {
+			n = StrToNum(StrExtract(s, 1));
+			total += n;
+			maxi = Max(n, maxi); if (n == maxi) prmax = StrToNum(StrExtract(s, 0));
+		}
+		for(i = 0; (s = StrExtract(hist, i, '\n')) != ""; ++i) {
+			price = StrToNum(StrExtract(s, 0)); size = StrToNum(StrExtract(s, 1));
+			GfxRectangle(x, price-0.45*ticksize, x+d*width*size/maxi, price+0.45*ticksize);
+		}
+		// POC
+		color = colorOrange; GfxSelectPen(color, 2); GfxSelectSolidBrush(color);
+		GfxRectangle(x, prmax-0.25*ticksize, x+d*width*maxi/maxi, prmax+0.25*ticksize);
+		
+		GfxSetCoordsMode(0); 
+		GfxColors(colorBlack, colorWhite);
+		GfxText("Ticker: "+ticker+"  Period: "+period+"  Maxi = "+maxi+ "  Total = "+total);
+	}	
+	
+	return hist;
+}
+
+if (ibis && ibis.IsConnected()) {
+	// compute position
+	D = Day(); 
+	CumDays = Cum(D != Ref(D,-1)); totalDays = LastValue(CumDays);
+	if (ndays > totalDays) x = 0; else {
+		x = LastValue(ValueWhen((totalDays - ndays) == CumDays, BarIndex()))+1;
+	}
+	if (dir == 1) d = -1; else d = 1;
+
+	// plot histogram
+	//GfxSetCoordsMode(1);
+	hist = GfxHistogram(x, width, d, ticker, rth, ""+ndays+" day", autorefresh);
+	
+	// display histogram data
+	//GfxSetCoordsMode(0); 
+	//GfxColors(colorBlack, colorWhite);
+	GfxText(hist);
+
+	// plot bars
+	Plot(C, "", colorDefault, styleBar);
+	Plot(D != Ref(D,-1), "", colorBlue, styleStaircase|styleOwnScale|styleNoLabel);
+	
+	// plot last price
+	GfxSetCoordsMode(1); 
+	color = colorRed; GfxSelectPen(color, 2); //GfxSelectSolidBrush(color);
+	last = LastValue(C); TickSize = 0;
+	//if (TickSize) GfxRectangle(x-5, last-1*ticksize, 1800, last+1*ticksize); else 
+	if (1) { GfxMoveTo(x-5, last); GfxLineTo(1800, last); }
+	GfxSetCoordsMode(0); 
+	
+} else {
+	GfxError("Not connected to TWS");
+}
+
+_SECTION_END();

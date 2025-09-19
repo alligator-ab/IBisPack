@@ -1,0 +1,510 @@
+_SECTION_BEGIN("IBis Test Other");
+idGui = 1;
+Title = "Test of new IBController features - Various Features\n";
+ibis = GetTradingInterface("IBis");
+
+lineHeight = 20; 
+colorFg = ParamColor("Text color", colorLime);
+colorBg = ParamColor("Background color", colorBlack);
+colorAlt = ColorBlend(colorFg, colorWhite, 0.5);	// Background color for alternate lines
+
+GfxSetTextColor(colorFg); GfxSelectPen(colorFg);
+GfxSetBkColor(colorBg); GfxSelectSolidBrush(colorBg);
+
+leftMargin = rightMargin = topMargin = botMargin = 10;
+lineSpaceFactor = 10;
+
+
+procedure AddTitle(s) {
+	global Title;
+	Title = Title + "\n" + s + "\n";
+}
+
+function bondPrice(p) {
+	local in, fr;
+	in = int(p); n = 32*frac(p); dec = int(n); fr = n - dec;
+	r = int(10*fr);
+	if (r == 0) r2 = ""; else r2 = ""+r;
+	if (dec < 10) dec = "0"+dec; else dec = ""+dec;
+	return ""+in+"'"+dec+r2;
+}
+
+// revInt returns a small string from num val, eg 12450 -> 12k, 3000000 -> 3M
+function revInt(val) {
+	local res;
+	
+	if (abs(val) < 10000) res = ""+int(val); else 
+	if (abs(val) < 1000000) res = ""+int(val/1000)+" K"; else 
+	res = ""+int(val/1000000)+" M";
+	return res;
+}
+
+function PlaceBasicOrder(order, transmit) {
+	//global ibc; 
+	local ibis, id, ticker, action, size, type, lmtPrice, auxPrice,
+		actionField, quantityField, symbolField, typeField, transmitField,
+		lmtPriceField, auxPriceField;
+	
+	ibis = GetTradingInterface("IBis");
+	if (ibis && ibis.IsConnected()) {
+		action = StrExtract(order,0); size = StrExtract(order,1); ticker = StrExtract(order,2);
+		type = StrExtract(order,3); lmtPrice = StrExtract(order,4); auxPrice = StrExtract(order,5); 
+		actionField = "action: "+action;
+		if (StrToNum(auxPrice) != 0) auxPriceField = "auxPrice: "+auxPrice; else auxPriceField = "";
+		if (StrToNum(lmtPrice) != 0) lmtPriceField = "limitPrice: "+lmtPrice; else lmtPriceField = "";
+		quantityField = "quantity: "+size;
+		symbolField = "symbol: '"+ticker+"'";
+		typeField = "orderType: "+type;
+		if (transmit) transmitField = "transmit: "+"'True'"; else transmitField = "transmit: "+"'False'";
+		// id = ibis.PlaceOrder(ticker, action, StrToNum(size), type, StrToNum(lmtPrice), StrToNum(auxPrice), transmit);
+		// PlaceOrder( string Ticker, string Action, number Quantity, string Type, number LimitPrice, number StopPrice, string TimeInForce, bool Transmit
+		s = StrFormat("%s,%s,%s,%s,%s,%s,%s", actionField, symbolField, quantityField, typeField, lmtPriceField, auxPriceField, transmitField);
+		id = ibis.PlaceOrderEx(s); // Using PlaceOrderEx() avoids precision issues due to StrToNum() (float)
+	} else {
+		id = 0;
+	}
+	return id;
+}
+
+// draw frame/background
+procedure drawDOM(tit, numRows, x, y, width, height, colorBg, colorBgAlt, bidcolor, askcolor, bidcoloralt, askcoloralt) {
+	local hwidth, nheight, bot, top, left, right, hleft, hright, dheight, y1, y2, idEdit, rc;
+	
+	hwidth = 0.5*width;
+	nheight = numRows*height;
+	bot = y-nheight; top = y+nheight;
+	left = x-width; right = x+width;
+	hleft = x-hwidth; hright = x+hwidth;
+	dheight = 2*height;
+	GfxSelectSolidBrush(colorBgAlt);
+	GfxRectangle(left, bot-2*height, right, top+height);
+	GfxSelectSolidBrush(bidcolor); 
+	GfxRectangle(left, bot, hleft, top);
+	GfxSelectSolidBrush(askcolor); 
+	GfxRectangle(hright, bot, right, top);
+	
+	GfxSelectSolidBrush(bidcoloralt); y1 = bot; y2 = y1+height;
+	//for(i = -numRows+1; i <= numRows; i+=2) GfxRectangle(left, y-(i)*height, hleft, y-(i-1)*height);
+	for(i = -numRows+1; i <= numRows; i += 2) {
+		GfxRectangle(left, y1, hleft, y2);
+		y1 += dheight; y2 += dheight;
+	}
+	
+	GfxSelectSolidBrush(askcoloralt); y1 = bot; y2 = y1+height;
+	//for(i = -numRows+1; i <= numRows; i+=2) GfxRectangle(hright, y-(i)*height, right, y-(i-1)*height);
+	for(i = -numRows+1; i <= numRows; i += 2) {
+		GfxRectangle(hright, y1, right, y2);
+		y1 += dheight; y2 += dheight;
+	}
+	
+	GfxSelectSolidBrush(colorBgAlt); y1 = bot; y2 = y1+height;
+	// for(i = -numRows+1; i <= numRows; i+=2) GfxRectangle(hleft, y+i*height, hright, y+(i+1)*height);
+	for(i = -numRows+1; i <= numRows; i += 2) {
+		GfxRectangle(hleft, y1, hright, y2);
+		y1 += dheight; y2 += dheight;
+	}
+	
+	// Size GuiEdit
+	idEdit = Nz(StaticVarGet("StaticDOMGuiEditId"+x+","+y+GetChartID()), 0);
+	if (idEdit == 0) {
+		idEdit = Nz(StaticVarAdd("GuiId"+GetChartID(), 1), 1); //++idGui; // TODO: new id
+		StaticVarSet("StaticDOMGuiEditId"+x+","+y+GetChartID(), idEdit);
+	}
+	rc = GuiEdit( idEdit, x+0.5*width, y-(numRows+1)*height+2, 0.5*width, 22, notifyEditChange );
+	if( rc == guiNew ) GuiSetText("10", idEdit );
+	text = GuiGetText(idEdit); 
+	size = Nz(StrToNum(text)); 
+	
+	// 
+	GfxSetTextColor(colorWhite);GfxSetBkColor(ColorBg);
+	GfxDrawText("Size", x, y-(numRows+1)*height+5, x+0.45*width, y-(numRows+0)*height, 2);
+	GfxDrawText("Pos: ", x-width, y-(numRows+1)*height+5, x-hwidth, y-(numRows+0)*height, 2);
+	GfxSetTextColor(colorBlack);GfxSetBkColor(colorWhite);
+	//GfxDrawText(tit, x-width, y-(numRows+2)*height+5, x+width, y-(numRows+1)*height, 1);
+
+}
+
+function OrderClick(ticker, numRows, md, size, x,y,width,height,opt) {
+	local cx, cy, price, type, order, action;
+	
+	order = ""; action = "";
+	if (GetCursorMouseButtons() == 9) {
+		cx = GetCursorXPosition(1); cy = GetCursorYPosition(1); 
+		if (!IsNull(cx) && !IsNull(cy)) {
+			if ((cy > y-numRows*height) && (cy < y+numRows*height)) {
+				row = (int((cy-y)/height)); 
+				s = StrExtract(md, abs(row)+1, ',');
+				if (row > 0) side = StrExtract(s, 0, ';'); else side = StrExtract(s, 1, ';'); 
+				price = StrExtract(side, 1, ':'); 
+				if ((cx > x-width) && (cx < x-0.5*width)) { 
+					action = "BUY"; if (cy > y) type = "LMT"; else {
+						if (opt & 1 == 0) type = "MKT"; else { // LMT max ask...
+							s = StrExtract(md, numRows, ','); // NB: issue: last one not always farest !
+							side = StrExtract(s, 1, ';');
+							price = StrExtract(side, 1, ':'); 
+							type = "LMT";
+						}
+					}
+				} else 
+				if ((cx > x+0.5*width) && (cx < x+width)) { 
+					action = "SELL"; if (cy < y) type = "LMT"; else {
+						if (opt & 1 == 0) type = "MKT"; else { // LMT max ask...
+							s = StrExtract(md, numRows, ','); // NB: issue: last one not always farest !
+							side = StrExtract(s, 0, ';');
+							price = StrExtract(side, 1, ':'); 
+							type = "LMT";
+						}
+					}
+				}
+			}
+		}
+	}
+	if (action != "") order = StrFormat("%s,%.0f,%s,%s,%s,0", action, size, ticker, type, price); else order = "";
+	return order;
+}
+
+function TickerisBond(ticker) {
+	local req, exchange, sectype, mintick, isbond, mt;
+	
+	req = ibis.ContractDetails(ticker, "minTick,Exchange,SecType"); 
+	exchange = StrExtract(req, 1); sectype = StrExtract(req, 2); minTick = StrExtract(req,0);
+	mt = Nz(StrToNum(req), 0.01); //AddTitle("minTick of "+ticker+" = "+minTick+ " : s"+req);
+	isBond = ((minTick == "0.03125")  || (minTick == "0.0078125")   || (minTick == "0.00390625") || (minTick == "0.015625") || (frac(mt*64) == 0))
+				&& ((exchange == "ECBOT") || (SecType == "BOND")); // corp. bonds 1/8
+	return isBond;
+}
+
+function GetTicker(DOMId, tickers) {
+	local ticker;
+	
+	ticker = StaticVarGetText("StaticDOMTicker"+DOMId); 
+	if (ticker == "") {
+		ticker = StrExtract(tickers, 0);
+		StaticVarSetText("StaticDOMTicker"+DOMId, ticker); 
+	}
+	return ticker;
+}
+
+procedure SetTicker(DOMId, ticker) {
+	StaticVarSetText("StaticDOMTicker"+DOMId, ticker);
+}
+
+function ShortName(ticker) {
+	local i, res;
+	i = StrFind(ticker, "-");
+	if (i > 0) res = StrLeft(ticker,i-1); else res = ticker;
+	return res;
+}
+//////////////////// Gfx Lib functios ////////////////////////
+
+procedure GfxSetColors(fgColor, bgColor) {
+	GfxSetTextColor(fgColor); GfxSetBkColor(bgColor); 
+	GfxSelectPen(fgColor); GfxSelectSolidBrush(bgColor);
+}
+
+function PointInside(x0, y0, x, y, width, height) {
+    global _x0, _y0;
+	x = x+_x0; y = y+_y0;
+    x0 = x0+_x0; y0 = y0+_y0;
+	return ((x0 >= x) && (y0 >= y) && (x0 <= (x+width)) && (y0 <= (y+height)));
+}
+
+function LeftClickInside(x, y, width, height) {
+	// global _cursorMouseButtons, _x0, _y0;
+	local px, py, res;
+	
+	// x = x+_x0; y = y+_y0;
+	res = 0;
+	if (GetCursorMouseButtons() == 9) {
+		cx = GetCursorXPosition(1); cy = GetCursorYPosition(1); 
+		if (!IsNull(cx) && !IsNull(cy)) {
+			res = ((cx >= x) && (cx <= x+width) && (cy >= y) && (cy <= cy+height)); 
+		}
+	}
+	return res;
+}
+
+function GfxGetState(id) {
+	return Nz(StaticVarGet("GfxState"+id+GetChartID()), 0);
+}
+
+procedure GfxSetState(id, val) {
+	StaticVarSet("GfxState"+id+GetChartID(), val);
+}
+
+function GfxSelect(id, options, x, y, width, height, textColor, bgColor ) {
+	global _x0, _y0;
+	local n, s, state, i;
+	
+	//x = x+_x0; y = y+_y0; 
+	state = GfxGetState(id); if (state==0) state=-1; // closed, 1st option
+	n = StrCount(options,",")+1;
+	if ((state < 0) && LeftClickInside(x,y,width,height)) {
+		state = -state;
+	} else
+	if ((state > 0) && LeftClickInside(x,y,width,(n+1)*height)) {
+		py = GetCursorYPosition(1);
+		i = round(0.5 + (py - y)/height);
+		if (i > 1) state = -i+1; else state = -state;
+	}
+	n = abs(state)-1;
+	GfxSetState(id, state);
+	GfxSetColors(textColor, bgColor);
+    GfxRoundRect(x,y,x+width,y+height,5,5);
+	// GfxDrawText(StrExtract(options, n), x,y,x+width,y+height, DT_CENTER | DT_VCENTER ); 
+	GfxDrawText(StrExtract(options, n), x,y,x+width,y+height, 1|4|32 ); 
+	if (state > 0) {
+		GfxSetColors(bgColor, textColor);
+		for(i = 0; (s = StrExtract(options, i)) != ""; ++i) {
+			y += height;
+			GfxRectangle(x,y,x+width,y+height);
+			// GfxDrawText(StrExtract(options, i), x,y,x+width,y+height, DT_CENTER | DT_VCENTER ); 
+			GfxDrawText(StrExtract(options, i), x,y,x+width,y+height, 1|4|32 ); 
+		}
+	}
+	return n;
+}
+
+function SelectTicker(DOMId, tickers, x, y, width, height) {
+	local s, list, i;
+	
+	s = StrExtract(tickers, 0);
+	list = StrLeft(s, StrFind(s, "-")-1)+"";
+	for(i = 1; (s = StrExtract(tickers, i)) != ""; ++i) list = list+","+StrLeft(s, StrFind(s, "-")-1)+"";
+	n = GfxSelect("List"+DOMId, list, x+1, y+4, width-2, height-2, colorWhite, ColorBlend(colorblack, colorGrey40));
+	res = StrExtract(tickers, n); 
+	SetTicker(DOMId, res); // AddTitle("SelectTicker "+res);
+	return res;
+}
+
+// TODO: Display Pending Orders Left Side, Cancel if clicked
+function StaticDOM(DOMId, tickers, numRows, x, y, width, height, isSmartDepth, opt) {	
+	global ibis;
+	
+	local minTick, isBond, md, tit, stats, bidtotal, asktotal, updatedeltabid, updatedeltaask, 
+		bgColor, bidcolor, askcolor, colorfg, colorbg, colorbg2, color1, color2, i, r, d, s2, hwidth,
+		bidSide, askSide, bidprice, askprice, bidsize, asksize, bidtotal, asktotal, strbidprice, straskprice,
+		price, order, size, type, 
+		ticker, id, MktDepth, lastMktDepth; 
+
+	// we use centered coord system
+	x += width; // 1/2w 1st col + half center col
+	y += 2*height + numRows*height; // header height + 'ask' rows height
+
+	// select another ticker ?
+	ticker = GetTicker(DOMId, tickers); // AddTitle("FIRST: "+ticker);
+	//ticker = StrExtract(tickers, 0);
+	// check DOM is unchanged, or cancel previous request
+	id = "StaticDOM"+DOMId;
+	MktDepth = ticker + "_" + numRows + "_" + isSmartDepth;
+	lastMktDepth = StaticVarGetText(id);
+	if (lastMktDepth != MktDepth) {
+		if (lastMktDepth != "") ibis.CancelMarketDepth(StrExtract(lastMktDepth, 0, '_'));
+		StaticVarSetText(id, MktDepth);
+	}
+
+	// let's go...request market depth
+	md = ibis.MarketDepth(ticker, numRows, isSmartDepth); AddTitle(ticker+"\n"+StrReplace(md,",","\n"));
+	
+	isBond = TickerisBond(ticker);
+	isCash = StrFind(ticker, "IDEALPRO-CASH");
+	minTick = StrToNum(ibis.ContractDetails(ticker, "minTick"));
+	if (isCash && (minTick <= 0.0005)) shift = 0.2*width; else shift = 0;
+	
+	tit = " "+StrLeft(ticker,11)+" ";
+	// tit = " "+StrExtract(ticker,0,'-')+" ";
+	// extract stats
+	stats = StrExtract(md, 0, ','); 
+	bidtotal = StrToNum(StrExtract(stats, 0, ';'));
+	asktotal = StrToNum(StrExtract(stats, 1, ';'));
+	updatedeltabid = StrToNum(StrExtract(stats, 2, ';'));
+	updatedeltaask = StrToNum(StrExtract(stats, 3, ';'));
+	
+	expNumRows = numRows; // expected num of rows
+	for(i = 0; (s = StrExtract(md, i+1)) != ""; ++i) {
+		bidSide = StrExtract(s, 0, ';'); askSide = StrExtract(s, 1, ';');
+		bidpos = StrToNum(StrExtract(bidSide, 0, ':')); askpos = StrToNum(StrExtract(askSide, 0, ':')); 
+		strbidprice = StrExtract(bidSide, 1, ':'); straskprice = StrExtract(askSide, 1, ':');
+		bidprice = StrToNum(strbidprice); askprice = StrToNum(straskprice); 
+		if ((bidPrice == 0) && (askPrice == 0)) break;
+	} // received/available vs expected...
+	numRows = i;
+	hwidth = 0.5*width;
+	
+	GfxSelectFont("Consolas", 9);
+	// draw frame & title
+	bgColor = ColorBlend(colorBlack, colorGrey40);
+	bidColor = ColorBlend(colorBlue, colorGrey40); askColor = ColorBlend(colorRed, colorDarkRed, 0.25);
+	GfxSelectPen(colorLightBlue); GfxSetBkColor(colorWhite); GfxSelectSolidBrush(bgColor); 
+
+	// draw bid/ask frames/bg
+	colorfg = colorBlack; 
+	colorBg = ColorBlend(colorblack, colorGrey50); //(colorLightGrey); 
+	colorBg2 = ColorBlend(colorblack, colorGrey40);
+	bidcoloralt = color1 = ColorBlend(bidColor, colorBlue); 
+	askcoloralt = color2 = ColorBlend(askColor, colorDarkRed); 
+	// draw frame/background
+	drawDOM(tit, expNumRows, x, y, width, height, colorBg, colorBg2, bidcolor, askcolor, bidcoloralt, askcoloralt);
+	////
+	
+	r = (numRows & 1);// r = 0;
+	d = GfxGetTextWidth("0");
+		
+	GfxSetTextColor(colorWhite); GfxSetBkColor(bgcolor);
+	GfxSelectPen(colorFg); GfxSelectSolidBrush(bgcolor);
+	// extract data & draw text
+	for(i = 1; i <= numRows; i++) {
+		s = StrExtract(md, i, ','); // (s = StrExtract(md, i, ',')) != ""
+		bidSide = StrExtract(s, 0, ';'); askSide = StrExtract(s, 1, ';');
+		bidpos = StrToNum(StrExtract(bidSide, 0, ':')); askpos = StrToNum(StrExtract(askSide, 0, ':')); 
+		strbidprice = StrExtract(bidSide, 1, ':'); straskprice = StrExtract(askSide, 1, ':');
+		bidprice = StrToNum(strbidprice); askprice = StrToNum(straskprice); 
+		bidsize = StrToNum(StrExtract(bidSide, 2, ':')); asksize = StrToNum(StrExtract(askSide, 2, ':'));
+		//if ((bidsize == 0) && (asksize == 0)) continue;
+		bidpos++; askpos++; // quickfix
+		
+		if (bidsize) {
+			if ((i & 1) == r) color = bidColor; else color = bidcoloralt; // color1;
+			GfxSetBkColor(color);
+			GfxDrawText(revInt(bidsize), x-width, y+(bidpos-1)*height+5, x-0.6*width, y+(bidpos)*height, 2); // bid size
+		}
+		if (asksize) {
+			if ((i & 1) != r) color = askColor; else color = color2;
+			GfxSetBkColor(color);
+			GfxDrawText(revInt(asksize), x+0.6*width, y-(askpos)*height+5, x+width-10, y-(askpos-1)*height, 2); // ask size
+		}
+		
+		if (isBond) {
+			strbidprice = bondPrice(bidprice); straskprice = bondPrice(askprice); 
+			intbid = StrExtract(strbidprice, 0, '''); fracbid = "0'"+StrExtract(strbidprice, 1, ''');		
+			intask = StrExtract(straskprice, 0, '''); fracask = "0'"+StrExtract(straskprice, 1, ''');		
+		} else {
+			intbid = StrExtract(strbidprice, 0,'.'); intask = StrExtract(straskprice, 0,'.');
+			fracbid = "0."+StrExtract(strbidprice, 1,'.'); fracask = "0."+StrExtract(straskprice, 1,'.'); 
+		}
+			
+		GfxSetBkColor(colorBg); 
+		if (bidsize) if ((intbid != "0") || (fracbid != "0.0")) { // continue; // { intask = ""; fracask = ""; } 
+			GfxDrawText(fracbid, x-d-shift, y+(bidpos-1)*height+5, x+0.5*width, y+(bidpos)*height, 0); // bid price
+			GfxDrawText(intbid, x-0.5*width, y+(bidpos-1)*height+5, x-shift, y+(bidpos)*height, 2); // bid price
+		}
+		if (asksize) if ((intask != "0") || (fracask != "0.0")) { // continue; // { intask = ""; fracask = ""; } 
+			GfxDrawText(fracask, x-d-shift, y-(askpos)*height+5, x+0.5*width, y-(askpos-1)*height, 0); // ask price
+			GfxDrawText(intask, x-0.5*width, y-(askpos)*height+5, x-shift, y-(askpos-1)*height, 2); // ask price	
+		}
+	}
+	///
+	numRows = expNumRows;
+	GfxSelectPen(colorBlack, 2);
+	GfxMoveTo(x-width+1, y); GfxLineTo(x+width-1, y);
+	// Stats
+	GfxSetBkColor(bgColor);
+	i = numRows+1; bgColor2 = ColorBlend(colorWhite, bgColor);
+	if (bidtotal > asktotal) { GfxSetBkColor(colorLightGrey); GfxSetTextColor(colorBlack); }
+	GfxDrawText(" "+revInt(bidtotal)+" ", x-width, y+(i-1)*height+5, x-0.5*width, y+(i)*height, 1); GfxSetBkColor(bgColor);
+	GfxSetTextColor(colorWhite);
+	if (bidtotal < asktotal) { GfxSetBkColor(colorLightGrey); GfxSetTextColor(colorBlack); }
+	GfxDrawText(" "+revInt(asktotal)+" ", x+0.5*width, y+(i-1)*height+5, x+width, y+(i)*height, 1); GfxSetBkColor(bgColor);
+	GfxSetTextColor(colorWhite);
+	
+	GfxDrawText(revInt(updatedeltabid), x-0.5*width, y+(i-1)*height+5, x-5, y+(i)*height, 2); 
+	GfxDrawText(revInt(updatedeltaask), x+5, y+(i-1)*height+5, x+0.5*width-5, y+(i)*height, 1);
+	
+	// Click-order management
+	price = 0; order = ""; type = "LMT"; size = 0;
+
+	// if (GetCursorMouseButtons() == 9) 
+	order = OrderClick(ticker, numRows, md, size, x,y,width,height,opt & 1);
+	
+	// Display Pending Orders Left Side, Cancel if clicked
+	// if (order != "") result = StrFormat("%s,%.0f,%s,%s,%s", action, size, ticker, type, price); else result = "";
+	result = order; 
+	//
+	// ticker = SelectTicker(DOMId, tickers, x-0.5*width, y-(numRows+2)*height, width, height);
+	ticker = SelectTicker(DOMId, tickers, x-0.5*width, y-(numRows+2)*height, width, height);
+
+	
+	return result;	// string: action,size,ticker,type,price eg BUY,10,AAPL,LMT,223.5
+}
+
+if (!ibis.IsConnected()) {
+	AddTitle("================ NOT CONNECTED ================");
+} else {
+	ParamStr(" ================= Market Depth ================== (<= 10 !!!)", "                       ");
+	dyn = ParamToggle("Use active ticker ?", "No|Yes");
+	// ticker = ParamStr("ticker/contract Market Depth", "ZN   JUN 22-ECBOT-FUT");
+	tickers = "ZN   JUN 22-ECBOT-FUT|ZT   JUN 22-ECBOT-FUT|CLM2-NYMEX-FUT|ESM2-GLOBEX-FUT|EUR.USD-IDEALPRO-CASH|AAPL";
+	ticker = ParamList("ticker/contract Market Depth", tickers);
+	if (dyn) ticker = Name(); 
+	numRows = Param("num rows (<= 10 !!!)", 5, 5, 10, 1);
+	isSmartDepth = ParamToggle("Smart Depth", "No|Yes", 1);
+	x = Param("x", 1000, 0, 1800, 100);
+	y = Param("y", 200, 0, 900, 100);
+	//ts = TickSize; 
+	DOMId = 1;
+	/*
+	MktDepth = ticker + "_" + numRows + "_" + isSmartDepth+ "_" + DOMId;
+	id = "LastMktDepth"+GetChartID();
+	lastMktDepth = StaticVarGetText(id);
+	if (lastMktDepth != MktDepth) {
+		if (lastMktDepth != "") ibis.CancelMarketDepth(StrExtract(lastMktDepth, 0, '_'));
+		StaticVarSetText(id, MktDepth);
+	}
+	*/
+	opt = 1; // 1: ALWAYS USE LMT ORDER INSTEAD OF MKT
+	isSmartDepth = 1;
+	tickerslist = StrReplace(tickers, "|", ",");
+	order = StaticDOM(DOMId, tickerslist, numRows, x, y, 120, 30, isSmartDepth, opt);
+	if (order != "") PlaceBasicOrder(order, False); AddTitle(order);
+	//AddTitle("MarketDepth("+ticker+") = "+md);
+	
+	ParamStr(" ================= RTVolume ================== ", "                       ");
+	ticker2 = ParamStr("ticker/contract RTVolume", "ESM2-GLOBEX-FUT");
+	// RTVolume fields: 
+	ibis.SubscribeRTVolume(ticker2);
+	md = ibis.GetRTVolume(ticker2);
+	AddTitle("GetRTVolume("+ticker2+") = "+md);
+	AddTitle(""+ticker2+": "+"Last: "+StrExtract(md, 0, ';')+"   Size: "+StrExtract(md, 1, ';')+"   VWAP = "+StrExtract(md, 4, ';'));
+	
+	ParamStr(" ================= MktData ================== ", "                       ");
+	ticker3 = ParamStr("ticker/contract for MktData", "ZN   JUN 22-ECBOT-FUT");
+	
+	ibis.SubscribeMktData(ticker3, "");
+	fields = ParamStr("MktData fields 1 (Bid=1,Ask=2)", "1,2");
+	md = ibis.GetMktData(ticker3, fields); // Bid, Ask
+	AddTitle("GetMktData("+ticker3+", \""+fields+"\") = "+md);
+	AddTitle(""+ticker3+": "+"Bid: "+StrExtract(md, 0)+"   Ask: "+StrExtract(md, 1));
+	md = ibis.GetMktData(ticker3, "0,3"); // BidSize, AskSize
+	AddTitle(""+ticker3+": "+"Bid Size: "+StrExtract(md, 0)+"   Ask Size: "+StrExtract(md, 1));
+	//AddTitle(" ==================== TODO :  ===================== ");
+	AddTitle( StrFormat("Precision & output formats tests: f:%f %%.8f:%.7f g:%g %%.12g:%.8g -> USE %%.7f (but trailing zeros) or %%.12g !", 123.2890625, 123.2890625, 123.2890625, 123.2890625) );
+	AddTitle( StrFormat("Precision & output formats tests: f:%f %%.8f:%.7f g:%g %%.12g:%.8g -> USE %%.7f (but trailing zeros) or %%.12g !", 1.07905, 1.07905, 1.07905, 1.07905) );
+	AddTitle( StrFormat("Precision & output formats tests: f:%f %%.8f:%.7f g:%g %%.12g:%.12g -> USE %%.7f (but trailing zeros) or %%.12g !", 102.24, 102.24, 102.24, 102.24) );
+	AddTitle( StrFormat("Precision & output formats tests: f:%f %%.7f:%.7f g:%g %%.12g:%.8g -> USE %%.7f (but trailing zeros) or %%.12g !", 0.0078125, 0.0078125, 0.0078125, 0.0078125) );
+	AddTitle( StrFormat(" %%.8g: %.7g %.7g %.7g %.5f %.8g %.8g %.8g", 0.0078125, 0.015625, 0.03125, 0.00005, 0.0001, 0.01, 0.25) );
+
+	// Tests minTick
+	tickers = "EUR.JPY-IDEALPRO-CASH|"+tickers; res = ""; // res = ibis.ContractDetails("EUR.JPY-IDEALPRO-CASH", "minTick");
+	for(i = 0; (s = StrExtract(tickers, i, '|')) != ""; ++i) {
+		res = res + "    " + s + ": "+ ibis.ContractDetails(s, "minTick"); 
+	}
+	AddTitle("Minticks: "+res);
+	// Test/Check primaryExch
+	res = "primaryExch of AAPL: '"+ibis.ContractDetails("AAPL", "primaryExch")+"'    ";
+	res += "primaryExch of ES: '"+ibis.ContractDetails("ESM2-GLOBEX-FUT", "primaryExch")+"'    ";
+	res += "primaryExch of ZN: '"+ibis.ContractDetails("ZN   JUN 22-ECBOT-FUT", "primaryExch")+"'    ";
+	res += "Exchange of ES: '"+ibis.ContractDetails("ESM2-GLOBEX-FUT", "exchange")+"'    ";
+	res += "Exchange of AAPL: '"+ibis.ContractDetails("AAPL", "exchange")+"'    ";
+	res += "primaryExch of ZN: '"+ibis.ContractDetails("ZN   JUN 22-ECBOT-FUT", "primaryExch")+"'    ";
+	res += "Exchange of ZN: '"+ibis.ContractDetails("ZN   JUN 22-ECBOT-FUT", "exchange")+"'    ";
+	res += "primaryExch of CL: '"+ibis.ContractDetails("CLM2-NYMEX-FUT", "primaryExch")+"'    ";
+	res += "Exchange of CL: '"+ibis.ContractDetails("CLM2-NYMEX-FUT", "exchange")+"'    ";
+	AddTitle(res);
+	
+	// 
+	account = "";
+	res = ibis.GetPnL(account, "ZN   JUN 22-ECBOT-FUT", "Unrealized PnL");
+	AddTitle("UPnL: "+res);
+}
+
+_SECTION_END();

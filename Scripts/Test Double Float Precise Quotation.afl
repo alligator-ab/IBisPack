@@ -1,0 +1,230 @@
+_SECTION_BEGIN("Test Double Float Precise Quotation");
+
+_gfxlogline = 0;
+_gfxfontsize = Param("Gfx Font Size", 10, 5, 20);
+_gfxfont = ParamList("Font face", "Consolas|Arial");
+GfxSelectFont(_gfxfont, _gfxfontsize);
+_gfxtextwidth = GfxGetTextWidth(" ");
+
+procedure GfxLog(x, y, fontsize, s) {
+	global _gfxlogline, _gfxfontsize;
+	GfxTextOut(s, x, y + _gfxlogline*2.5*_gfxfontsize);
+	_gfxlogline++;
+}
+
+procedure TextTab(s, n) {
+	local i, x;
+	for(i = 0; (x = StrExtract(s, i, '\n')) != ""; ++i)
+		GfxLog(0+50*n, 0, _gfxfontsize, x);
+}
+
+procedure Text(s) {
+	TextTab(s, 0);
+}
+
+procedure TextLC(s, li, col) {
+	global _gfxlogline, _gfxfontsize;
+	local wi, he;
+	he = 2.5*_gfxfontsize; wi = _gfxtextwidth;
+	GfxTextOut(s, col*wi, (li-1)*he);
+}
+
+procedure AddTitle(s) {
+	global Title;
+	// Title = Title + s + "\n";
+	Text(s);
+}
+
+function right(s, k) {
+	return StrRight(s, StrLen(s)-k);
+}
+
+function format(val, p) {
+	local e, f, val, e2, f2, val2, fmt1, fmt2;
+	e = floor(val);
+	f = frac(val); 
+	val2 = floor(100000*val); //val2 = 100000000*f;
+	e2 = round(val2);
+	f2 = frac(val2);
+	val3 = e2*0.000001;
+	//if (f2 
+	fmt1 = StrFormat("%."+p+"g", val);
+	fmt2 = StrFormat("%."+p+"g", val2);
+	//return StrFormat("%.0g.%05g", e, val2-100000*e);
+	//return StrFormat("%.6g", val);
+	//return StrFormat("%f", fmt1);
+	//return right(StrFormat("%f", fmt2), 2);
+	return StrFormat("%."+p+"g", val);
+}
+
+function format_value1(val) {
+	f = frac(512*frac(val));
+	if (f == 0) p = 12; else p = 7;	// basic selector
+	s = StrFormat("%.3g", f); if (s == "0") p = 12; else p = 7;	// alt
+	fmt = "%."+p+"g";
+	res = StrFormat(fmt, val);
+	return res;
+}
+
+function format_value2(val) {
+	f = frac(512*frac(val));
+	integ = floor(val);
+	fract = frac(val);
+	
+	if (f != 0) {
+		res = StrFormat("%07.0f", round(10000000*fract));
+	} else {
+		res = StrFormat("%012.0f", round(1000000000000*fract));
+	}
+	if (StrToNum(res) == 0) res = ""+integ; else res = ""+integ+"."+res;
+	return res;
+}
+
+// This version is CORRECT AND DOES NOT USE StrFormat()/snprintf() magic-like conversion. 
+// Everything below is transparent...can be used as an alternative to 
+function format_value3(val) {
+	if (val < 0) { sig = "-"; val = -val; } else { sig = ""; }
+	
+	f = frac(256*frac(val));
+	integ = floor(val);
+	fract = frac(val);
+	
+	if (f == 0) { // let's go down to 8 decimal digits...
+		div = 5*5*5*5*5*5*5*5; 
+		num = round(fract*256); num256 = num; // NB: could use a table to retrieve exact string for fract part !
+		num = num * div; 
+		// lassic decimal notation algo...except the last digit (exceed 7 digits)
+		fr = ""; a = 100000000; nu = num;
+		while(a > 10) { // stop 1 digit before last...otherwise the last one (8th digit) could be wrong...
+			a /= 10; b = floor(nu/a); fr = fr + b; nu -= b*a;
+		}
+		// last digit can be wrong ! But not by far...so let's correct it ;) it should be 0 or 5 ! SUPER IMPORTANT
+		// 			 (1/2 == 0.5  (1/2)^n == ..5  and k*(1/2)^n = ..5 k odd) implies b == 0 or 5 
+		num1 = StrToNum("0."+fr+"0")*256; if (num1 == num256) b = 0; else b = 5; // read above
+		fr = fr + b; 
+	} else {
+		intdigits = 0; fa = 1; while(fa < integ) { fa *= 10; ++intdigits; }
+		// 7 digits all included is max ! THat's why we compute fractdigits then pad with 0
+		fractdigits = 7 - intdigits; // 7 is max
+		div = 1; fd = 0; while(fd < fractdigits) { div *= 10; ++fd; }
+		num = round(fract*div); fract = num/div;
+		nu = num*10; pad = "";
+		if (nu > 0) while (nu < div) { pad = "0"+pad; nu *= 10; }
+		fr = pad + num;
+	}
+	
+	// remove trailing zeros
+	n = StrLen(fr);
+	while (StrRight(fr, 1) == "0") { --n; fr = StrLeft(fr, n); }
+	if (StrRight(fr, 1) == ".") fr = ""; else fr = "." + fr;
+	
+	if (fract == 0) res = ""+integ; else res = ""+integ+fr; 
+	return sig+res;
+}
+
+function testFormat3(s) {
+	local res;
+	res = format_value3(StrToNum(s));
+	return res == s;
+}
+
+function check(s, p1, p2) {
+	local val, p, res, f;
+	val = StrToNum(s);
+	f = frac(512*frac(val)); // 256 ok
+	// Two methods:
+	m = StrFormat("%.3g", f); if (m == "0") p = p1; else p = p2;	// method 1
+	//if (f == 0)	p = p1; else p = p2;	// method 2
+	res = StrFormat("%."+p+"g", val);
+	
+	return res == s;
+}
+
+function checks(s, p1, p2) {
+	local res, tit;
+	tit = ""+p1+":"+p2+" ";
+	res = check(s, p1, p2);
+	if (res) tit = tit+"OK"; else tit = tit+"WRONG";
+	AddTitle(tit);
+	return res;
+}
+
+procedure TestPrec(s, from, to) {
+	local i, val, p;
+	val = StrToNum(s); 
+	
+	AddTitle("");
+	f = 256*val; f = f - round(f); 
+	m = StrFormat("%.11g", f);
+	if (m == "0") 
+		AddTitle("IS BOND OR .25 TickSize => USE %.11g "+m);
+		else AddTitle("NOT BOND => USE %.6g "+m);
+		
+	if (frac(256*val) == 0) p = 11; else p = 6;
+	res = format(val, p);
+	if (res == s) s2 = "SUCCESS"; else s2 = "FAILURE";
+	AddTitle("Test Precision "+StrFormat("%% %02gg",p)+" of "+s+": "+res+"  " + s2);
+	
+	checks(s, 11, 7);
+	checks(s, 11, 10);
+}
+
+function Tests(list, p1, p2) {
+	local i, s, errs, n;
+	errs = ""; n = 0;
+	for(i = 0; (s = StrTrim(StrExtract(list, i), "")) != ""; ++i)
+		if (!check(s, p1, p2)) { errs = s+","+errs; ++n; }
+		
+	if (errs == "") s = "(none)"; else s = ""+n;
+	AddTitle("Testing precision "+p1+" (frac) and "+p2+" (dec) for "+ StrLeft(list,35) + "..."+" Errors: "+n+": "+errs);
+
+	return errs;
+}
+
+function TestsFormat3(list) {
+	local i, s, errs, n;
+	errs = ""; n = 0;
+	for(i = 0; (s = StrTrim(StrExtract(list, i), "")) != ""; ++i)
+		if (!testFormat3(s)) { errs = s+","+errs; ++n; }
+		
+	if (errs == "") s = "(none)"; else s = ""+n;
+	AddTitle("Testing precision with format_value3(.) for "+ StrLeft(list,35) + "..."+" Errors: "+n+": "+errs);
+
+	return errs;
+}
+
+procedure Comparison(list, p1, p2, t) {
+	local i, s, errs, n;
+	errs = ""; n = 0; // t == "f" or "g"
+	fmt1 = "%."+p1+t; fmt2 = "%."+p2+t;
+	AddTitle(StrFormat("%16s%20s%20s     %20s%18s%18s      %20s", "Input", fmt1, fmt2, "frac 512*frac", "12/7 %g", "12/7 %f", "split 10^ 8/5 digits"));
+	for(i = 0; (s = StrTrim(StrExtract(list, i), "")) != ""; ++i) {
+		n = StrToNum(s);
+		s1 = StrFormat(fmt1, n); s2 = StrFormat(fmt2, n); f = ""+frac(512*frac(n)); 
+		val1 = format_value1(n); val2 = format_value2(n); val3 = format_value3(n);
+		AddTitle(StrFormat("%20s%20s%20s%20s%20s%20s%20s", s, s1, s2, f, val1, val2, val3));
+	}
+}
+
+Title = "Test Double Float Quotation Precision/Accuracy - Correct method is either '%.12g.%.7g' or 'format_value3()' - See table of tests";
+Text(Title);
+
+Testlist = "11.001,95.075,95.085,"+
+		"107.44140625,108.30078125,178.30078125,131.0078125,131.9921875,131.2421875"
+	+ ",123.031,131.31"
+	+ ",1.03145,1.0314,1.03143,11.00001"
+	+ ",1231.001,1231.05,197.001,3999.75"
+	//+ ",4000,253719,63"
+	+ ",25.89,3858.75,10924.75,133.46,1.06345,125.453125"
+	+ ",5.051,83.92,85.17,79.81,3.948,3.842,4.363"
+	+ ",0.001,0.01,0.1,1,10,100,1000,10000,111111"
+	+ ",";
+//errs = Tests(Testlist, 6, 6); 
+errs = Tests(Testlist, 10, 6); 
+//errs = Tests(Testlist, 11, 7); 
+errs = Tests(Testlist, 12, 7); 
+errs = TestsFormat3(Testlist);
+Comparison(Testlist, 12, 7, "g");
+//Comparison(Testlist, 8, 5, "f");
+// TextLC("YOYO",4, 30);
+_SECTION_END();

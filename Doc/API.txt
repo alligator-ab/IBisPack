@@ -1,0 +1,129 @@
+
+Here is the complete .idl file showing brute internal definition for all exposed methods (old IBController related def are commented):
+
+// BrokerIBis.idl : type library source for BrokerIBis.exe
+
+// This file will be processed by the MIDL compiler to produce the
+// type library (BrokerIBis.tlb).
+
+import "ocidl.idl";
+import "oaidl.idl";
+// [ uuid(0E2F5C5A-BF62-4FE0-A7E9-201DF367DF92), version(1.0) ] // Ex
+[uuid(9308910C-D95A-458C-9E73-523CBBE7EACB), version(1.0)]
+library BrokerIBis
+{
+	importlib("stdole32.tlb");
+	importlib("stdole2.tlb");
+	
+
+	//  Primary dispatch interface for CBrokerIBDoc
+	
+	[ uuid(DE68919E-62F5-44C4-84F5-6484AE26E9F5) ]
+	dispinterface IBrokerIBis
+	{
+		properties:
+			// NOTE - ClassWizard will maintain property information here.
+			//    Use extreme caution when editing this section.
+			//{{AFX_ODL_PROP(CBrokerIBDlgAutoProxy)
+			//}}AFX_ODL_PROP
+			
+		methods:
+			// NOTE - ClassWizard will maintain method information here.
+			//    Use extreme caution when editing this section.
+			//{{AFX_ODL_METHOD(CBrokerIBDlgAutoProxy)
+//			[id(1)] BSTR PlaceOrder(BSTR pszTicker, BSTR pszAction, long nQuantity, BSTR pszType, double dLimitPrice, double dStopPrice, BSTR pszTimeInForce, boolean bTransmit, [optional] VARIANT TickSize, [optional] VARIANT Attributes, [optional] VARIANT ParentID, [optional] VARIANT OCAGroup, [optional] VARIANT OCAType, [optional] VARIANT FAParams, [optional] VARIANT Account);
+//			[id(2)] BSTR ModifyOrder(BSTR pszOrderId, BSTR pszTicker, BSTR pszAction, long nQuantity, BSTR pszType, double dLimitPrice, double dStopPrice, BSTR pszTimeInForce, boolean bTransmit, [optional] VARIANT TickSize, [optional] VARIANT Attributes, [optional] VARIANT ParentID, [optional] VARIANT OCAGroup, [optional] VARIANT OCAType, [optional] VARIANT FAParams, [optional] VARIANT Account);
+			[id(1)] BSTR PlaceOrder(BSTR pszTicker, BSTR pszAction, VARIANT nQuantity, BSTR pszType, double dLimitPrice, double dStopPrice, BSTR pszTimeInForce, boolean bTransmit, [optional] VARIANT TickSize, [optional] VARIANT Attributes, [optional] VARIANT ParentID, [optional] VARIANT OCAGroup, [optional] VARIANT OCAType, [optional] VARIANT FAParams, [optional] VARIANT Account);
+			[id(2)] BSTR ModifyOrder(BSTR pszOrderId, BSTR pszTicker, BSTR pszAction, VARIANT nQuantity, BSTR pszType, double dLimitPrice, double dStopPrice, BSTR pszTimeInForce, boolean bTransmit, [optional] VARIANT TickSize, [optional] VARIANT Attributes, [optional] VARIANT ParentID, [optional] VARIANT OCAGroup, [optional] VARIANT OCAType, [optional] VARIANT FAParams, [optional] VARIANT Account);
+			[id(3)] boolean CancelOrder(BSTR pszOrderId);
+			[id(4)] BSTR GetStatus(BSTR pszOrderId, [optional] VARIANT InclFilled);
+			[id(5)] boolean IsOrderPending(BSTR pszOrderId);
+//			[id(6)] long GetPositionSize(BSTR pszTicker);
+			[id(6)] double GetPositionSize(BSTR pszTicker);
+			[id(7)] long IsConnected();
+			[id(8)] BSTR GetLastError(BSTR pszOrderId);
+			[id(9)] BSTR GetAccountValue(BSTR pszField);
+			[id(10)] VARIANT GetPositionInfo(BSTR pszTicker, BSTR pszField);
+			[id(11)] BSTR GetPositionList();
+			[id(12)] BSTR GetPendingList(long Type, BSTR pszFilter);
+			[id(13)] long CancelAllPendingOrders([optional] VARIANT pszTicker);
+			[id(14)] long CloseAllOpenPositions([optional] VARIANT pszTicker);
+			[id(15)] long Transmit(BSTR OrderId);
+			[id(16)] void Sleep(long Milliseconds);
+			[id(17)] boolean SetAccount(BSTR Account);
+			[id(18)] void ClearList(long ListNumber);
+			[id(19)] void Reconnect();
+			[id(20)] BSTR GetExecList(long Type, BSTR pszFilter);
+			[id(21)] VARIANT GetExecInfo(BSTR pszOrderId, BSTR pszField);
+			[id(22)] BSTR GetOrdersList(BSTR pszField, BSTR pszFilter);
+			[id(23)] VARIANT GetOrderInfo(BSTR pszOrderId, BSTR pszField);
+			[id(24)] boolean SetInfoAccount(BSTR Account);
+			[id(25)] BSTR PlaceOrderEx(BSTR jsonOrder);
+			[id(26)] BSTR GetPnL(BSTR pszAccount, BSTR pszTicker, BSTR pszField);
+			[id(27)] BSTR Exec(BSTR pszCommand);
+			[id(28)] void SubscribeBroadTapeNews(BSTR newsProvider);
+			[id(29)] void CancelBroadTapeNews(BSTR newsProvider);
+			[id(30)] void SubscribeNews(BSTR pszTicker, BSTR newsProvider);
+			[id(31)] void CancelNews(BSTR pszTicker, BSTR newsProvider);
+			[id(32)] BSTR NewsArticle(BSTR articleID);
+			[id(33)] BSTR ContractDetails(BSTR pszTicker, BSTR field);
+			[id(34)] BSTR HistoricalData(BSTR pszTicker, BSTR endTime, BSTR duration, 
+				BSTR barSize, BSTR whatToShow, boolean useRTH, int formatDate, boolean keepUpToDate, BSTR destFileName); 
+			[id(35)] BSTR MarketDepth(BSTR pszTicker, long numRows, boolean isSmartDepth);
+			[id(36)] void CancelMarketDepth(BSTR pszTicker);
+			[id(37)] void SubscribeRTVolume(BSTR pszTicker, [optional] VARIANT clientId);
+			[id(38)] void CancelRTVolume(BSTR pszTicker, [optional] VARIANT clientId);
+			[id(39)] BSTR GetRTVolume(BSTR pszTicker, [optional] VARIANT clientId);
+			[id(40)] void SubscribeMktData(BSTR pszTicker, BSTR pszGenericTicks, [optional] VARIANT clientId);
+			[id(41)] void CancelMktData(BSTR pszTicker, BSTR pszGenericTicks, [optional] VARIANT clientId);
+			[id(42)] BSTR GetMktData(BSTR pszTicker, BSTR pszFields, [optional] VARIANT clientId);
+			[id(43)] void StoreData(BSTR key, BSTR value, [optional] VARIANT append);
+			[id(44)] BSTR FetchData(BSTR key, [optional] VARIANT remove);
+			[id(45)] double AddData(BSTR key, double value);
+			[id(46)] void SendMessage(BSTR message, BSTR dest);
+			[id(47)] BSTR ReceiveMessage(BSTR dest);
+			[id(48)] BSTR MatchingSymbols(BSTR pszTicker);
+			[id(49)] BSTR SoftDollarTiers(BSTR name);
+			[id(50)] BSTR RunTape(BSTR pszTicker, [optional] VARIANT length, [optional] VARIANT minSize, [optional] VARIANT separator, [optional] VARIANT clientId);
+			[id(51)] void StopTape(BSTR pszTicker, [optional] VARIANT clientId);
+			[id(52)] BSTR GetRTData(BSTR pszTicker, BSTR pszFields, [optional] VARIANT genericTicks);
+			[id(53)] BSTR OptionChain(BSTR pszUnderlyingSymbol, BSTR pszExchange, BSTR pszUnderlyingSecType, long conId);
+			[id(54)] void ExerciseOptions(BSTR pszTicker, long Action, long Quantity, BSTR pszAccount, boolean Override);
+			[id(55)] BSTR ImpliedVolatility(BSTR pszTicker, double optionPrice, double underPrice, BSTR IVOptions);
+			[id(56)] BSTR OptionPrice(BSTR pszTicker, double volatility, double underPrice, BSTR optPriceOptions);
+			[id(57)] BSTR HistogramData(BSTR pszTicker, boolean bUseRTH, BSTR pszPeriod, [optional] VARIANT bRrefresh);
+			[id(58)] BSTR Scanner(BSTR pszSubscription, BSTR pszOptions, BSTR pszFilter, boolean snapshot);
+			[id(59)] BSTR Stats(BSTR pszTicker, BSTR pszOptions, [optional] VARIANT length);
+			[id(60)] void GlobalCancel();
+			[id(61)] BSTR WshMetaData();
+			[id(62)] BSTR WshEventData(long conId, BSTR from, BSTR to, BSTR filter, long totalLimit);
+			[id(63)] BSTR LastErrors(long num, long what);
+			[id(64)] BSTR MarketRule(BSTR pszTicker, [optional] VARIANT exchange);
+			[id(65)] BSTR GetCompletedOrders([optional] VARIANT orderIdList);
+			[id(66)] BSTR WhatIf(BSTR pszOrder, BSTR pszContract, [optional] VARIANT fields, [optional] VARIANT recompute);
+			[id(67)] void ReplaceFA(long lFaDataType, BSTR pszXml);
+			[id(68)] BSTR RequestFA(long lFaDataType);
+			[id(69)] BSTR HeadTimeStamp(BSTR pszContract, BSTR pszWhatToShow); 
+			[id(70)] long SubscribeRealTimeBars(BSTR pszContract, [optional] VARIANT barSize, [optional] VARIANT whatToShow, [optional] VARIANT rth);
+			[id(71)] void CancelRealTimeBars(VARIANT pszContractOrTickerId);
+			[id(72)] BSTR RealTimeBars([optional] VARIANT pszContractOrTickerId, [optional] VARIANT numLastBars);
+			[id(73)] BSTR ExecDetails(long orderId);
+			[id(74)] BSTR Headlines(long limit, [optional] VARIANT pszSymbolOrArticleId, [optional] VARIANT pszProviderCode);
+			[id(75)] boolean SaveAccount([optional] VARIANT pszFilename, [optional] VARIANT pszAccountCode, [optional] VARIANT pszFieldsList);
+			[id(76)] BSTR GetAccountSummary(BSTR pszGroup, [optional] VARIANT pszTags);
+			[id(77)] BSTR HistoricalSchedule(BSTR pszContract, BSTR pszEndDateTime, BSTR pszDuration);
+			//}}AFX_ODL_METHOD
+ 
+	};
+
+	//  Class information for CBrokerIBDoc
+	
+	[ uuid(1EE67C78-3FFB-4308-94FE-6EF885D5FC61) ]
+	coclass BrokerIBis
+	{
+		[default] dispinterface IBrokerIBis;
+	};
+
+	//{{AFX_APPEND_ODL}}
+	//}}AFX_APPEND_ODL}}
+};

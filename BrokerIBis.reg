@@ -1,0 +1,13 @@
+REGEDIT
+; This .REG file may be used by your SETUP program.
+;   If a SETUP program is not available, the entries below will be
+;   registered in your InitInstance automatically with a call to
+;   CWinApp::RegisterShellFileTypes and COleObjectFactory::UpdateRegistryAll.
+
+
+HKEY_CLASSES_ROOT\BrokerIBis.Application = BrokerIBis.Application
+HKEY_CLASSES_ROOT\BrokerIBis.Application\CLSID = {1EE67C78-3FFB-4308-94FE-6EF885D5FC61}
+
+HKEY_CLASSES_ROOT\CLSID\{1EE67C78-3FFB-4308-94FE-6EF885D5FC61} = BrokerIBis Application
+HKEY_CLASSES_ROOT\CLSID\{1EE67C78-3FFB-4308-94FE-6EF885D5FC61}\ProgId = BrokerIBis.Application
+HKEY_CLASSES_ROOT\CLSID\{1EE67C78-3FFB-4308-94FE-6EF885D5FC61}\LocalServer32 = BROKERIBIS.EXE

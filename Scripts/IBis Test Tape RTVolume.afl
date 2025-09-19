@@ -1,0 +1,377 @@
+_SECTION_BEGIN("IBis Test Tape RTVolume");
+
+#include_once "Formulas\Custom\GfxText.afl";
+GfxClear(colorBlack);
+GfxColors(colorLime, colorBlack);
+
+////////////////////
+x = Param("x", 400, 0, 1900, 100);
+y = Param("y", 50, 0, 900, 50);
+length = Param("tape length", 10, 5, 30, 5);
+minSize = Param("min size filter", 10, 0, 100, 10);
+method = ParamToggle("Method","RTVolume|RunTape",0);
+stop = ParamToggle("Tape", "On|Off");
+flash = ParamToggle("Flash big size", "No|Yes", 1);
+fontSize = Param("Font size", 9, 7, 12);
+options = Param("options", 1|2, 0, 7); // 1: flash big size, 2: signal price shift, 4: RTVolume
+ticker = Name();
+clientId = 1;
+
+///////////////////
+ibis = GetTradingInterface("IBis");
+
+function IBisRunTape(ticker, length, minSize) {
+	global ibis, clientId;
+	local res, sep;
+	sep = '\n';
+	if (!ibis.IsConnected()) res = "";
+	//else res = ibis.RunTape(ticker, length, minSize); //
+	else res = ibis.RunTape(ticker, length, minSize, sep, clientId); 
+	return res;
+}
+
+////
+function minTick(ticker) {
+	local m;
+	m = Nz(StaticVarGet("minTick"+ticker));
+	if (m == 0) {
+		m = StrToNum(ibis.ContractDetails(ticker, "minTick")); // AddTitle("mintick m = "+m);
+		if (m == 0) m = 0.01; else StaticVarSet("minTick"+ticker, m);
+	} //else AddTitle("mintick found m = "+m);
+	return m;
+}
+
+function isFracQuoted(ticker) {
+	local m;
+	m = minTick(ticker); if (m == 0) m = 0.01; 
+	its = round(1/m);
+	return ((its == 8) || (its == 16) || (its == 32) || (its == 64) || (its == 128) || (its == 256));
+}
+
+function FracPrice(ticker, p) {
+	local in, fr, m, its;
+	m = minTick(ticker); its = round(1/m);
+	in = int(p); fra = round((p - in)*its)*m;
+	n = 32*fra; dec = int(n); 
+	fr = n - dec; fr8 = round(8*fr); 
+	switch(fr8) {
+		case 0: r2 = ""; break;
+		case 1: r2 = "1"; break;
+		case 2: r2 = "2"; break;
+		case 3: r2 = "3"; break;
+		case 4: r2 = "5"; break;
+		case 5: r2 = "6"; break;
+		case 6: r2 = "7"; break;
+		case 7: r2 = "8"; break;
+		default: r2 = ""; break;
+	}
+	if (dec < 10) dec = "0"+dec; else dec = ""+dec;
+	return ""+in+"'"+dec+r2;
+}
+
+function DecimalPrice(ticker, p) {
+	m = minTick(ticker); its = round(1/m);
+	in = int(p); fr = round((p - in)*its)*m;
+	if (fr == 0) res = ""+in; else 
+	res = ""+(in + fr); 
+	return res;
+}
+
+function PriceToStr(ticker, p) {
+	local m, res;
+	if (isFracQuoted(ticker)) res = FracPrice(ticker, p); 
+	else res = DecimalPrice(ticker, p);
+	return res;
+}
+	
+ticker = Name();
+
+procedure subscribeRTVol(ticker) {
+	id = "RTVolume"+GetChartID();
+	if (!StaticVarGet(id)) {
+		ibis.SubscribeRTVolume(ticker);
+		StaticVarSet(id, 1);
+	}
+}
+
+procedure cancelRTVol(ticker) {
+	id = "RTVolume"+GetChartID();
+	if (StaticVarGet(id)) {
+		ibis.CancelRTVolume(ticker);
+		StaticVarRemove(id);
+	}
+}
+
+function GetRTVolume(ticker) {
+	local id, res;
+	
+	res = "";
+	id = "RTVolume"+GetChartID();
+	if (!StaticVarGet(id)) {
+		subscribeRTVol(ticker);
+	} else {
+		res = ibis.GetRTVolume(ticker);
+	}
+	return res;
+}
+
+function TimeAndSales(ticker, minSize) {
+	local f, isb, rt, res, last, time, size, vol, vwap, strlast;
+	isb = isFracQuoted(ticker);
+	//minTick = ibis.ContractDetails(ticker, "mintick");
+	rt = GetRTVolume(ticker);
+	if (rt == "") res = ""; else {
+		size = StrExtract(rt, 1, ';'); f = StrToNum(size); size = StrFormat("%g", f);
+		if (f >= minSize) {
+			last = StrExtract(rt, 0, ';');
+			time = StrExtract(rt, 2, ';'); 
+			vol = StrExtract(rt, 3, ';');
+			vwap = StrExtract(rt, 4, ';');
+			strlast = PriceToStr(ticker, StrToNum(last));
+			vwap = PriceToStr(ticker, StrToNum(vwap));
+			
+			//res = StrFormat("  %-12s %6s     %8s      %-12s", last, size, time, vwap);
+			res = last + "|" + size + "|" + StrFormat("  %-12s %6s     %8s  ", strlast, size, time);
+		} else {
+			res = "";
+		}
+	}
+	return res;
+}
+
+function RunTapeRTVolume(ticker, height, minSize) {
+	info = StaticVarGetText("TapeLast"+ticker);
+	if (info != "") {
+		tapeh = StrToNum(StrExtract(info,0,';'));
+		prevlen = StrToNum(StrExtract(info,1,';'));
+		prevlist = StrExtract(info,2,';');
+		
+		firstline = StrExtract(prevlist, 0, '\n');
+		line = TimeAndSales(ticker, minSize); //AddTitle("Time & Sales: " +line);
+		
+		if ((line != "") && (line != firstline)) {
+			if (prevlen < height) {
+				list = line + "\n" + prevlist;
+				len = prevlen+1; 
+			} else {
+				if (height <= 1) {
+					list = line; len = 1; 
+				} else {
+					list = "";
+					for(i = height-2; i >= 0; --i) list = StrExtract(prevlist, i, '\n') + "\n" + list;
+					list = line + "\n" + list;
+					len = Min(prevlen, height);
+				}
+			}
+			info = StrFormat("%.0f;%.0f;%s", tapeh, len, list);
+			StaticVarSetText("TapeLast"+ticker, info);
+			//GfxText(ticker + " Tape: \n"+info);
+		} else {
+			list = prevlist;
+		}
+	} else {
+		StaticVarSetText("TapeLast"+ticker, ""+height+";0;");
+		list = "";
+	}
+	return list;
+}
+
+function RunTape(ticker, length, minSize) {
+	clientId = 0;
+	list = IBisRunTape(ticker, length, minSize); 
+	//list = "";
+	GfxText("ibis RunTape list=\n"+list);
+	res = "";
+	for(i = 0; (line = StrExtract(list, i, '\n')) != ""; ++i) {
+		price = StrToNum(StrExtract(line,0,';')); 
+		size = StrExtract(line,1,';'); size = StrFormat("%g", StrToNum(size));
+		time = StrExtract(line,2,';');
+		// Vol = StrExtract(line,3,';'); Vwap = StrExtract(line,4,';');
+		// strLast = PriceToStr(ticker, price);
+		strLast = StrExtract(line,6,';');
+		line = ""+price+"|"+size+"|"+StrFormat("  %-12s %6s     %8s  ", strlast, size, time);
+		res = res + line + "\n";
+	}
+	//res = list;
+	return res;
+}
+
+function VolumeToStr(vol) {
+	local vol, res, r1, r2, r3, r4;
+	r4 = int(vol/1000000000); vol -= r4*1000000000;
+	r3 = int(vol/1000000); vol -= r3*1000000;
+	r2 = int(vol/1000); vol -= r2*1000;
+	r1 = vol;
+	if (r4 >= 100) res = StrFormat("%.0f B", r4); else 
+	if (r4 > 0) res = StrFormat("%.0f %03.0f M", r4, r3); else 
+	if (r3 >= 100) res = StrFormat("%.0f M", r3); else 
+	if (r3 > 0) res = StrFormat("%.0f %03.0f K", r3, r2); else 
+	if (r2 >= 100) res = StrFormat("%.0f K", r2); else 
+	if (r2 > 0) res = StrFormat("%.0f %03.0f", r2, r1); else 
+	res = StrFormat("%.0f", r1);
+	return res;
+}
+
+procedure SetBgColor(color) {
+	GfxSelectSolidBrush(color); GfxSelectPen(color); GfxSetBkColor(color); 
+}
+
+procedure drawTape(ticker, length, minSize, x, y, fontSize, opt) {
+	width = 260*fontSize/8; lineHeight = 32*fontSize/12;
+	flash = opt & 1; delta = opt & 2; method = opt & 4;
+	//method = 1;
+	if (method) list = RunTapeRTVolume(ticker, length, minSize);
+	else list = RunTape(ticker, length, minSize);
+	//
+	//GfxText("Method " + method + " - ibis list=\n"+list); // TO DEBUG
+	x0 = x; y0 = y;
+	
+	height = (length + 5.0) * lineheight;
+	
+	fgcolor = ColorBlend(colorWhite, colorLime, 0.7);
+	bgcolor = ColorBlend(colorBlack, colorDarkGrey, 0.9); 
+	bgcolor2 = ColorBlend(colorGreen, bgColor, 0.8); bgcolor3 = ColorBlend(colorOrange, bgColor, 0.6); 
+	bgColorUp = ColorBlend(colorGreen, bgColor, 0.1); bgColorDown = ColorBlend(colorRed, bgColor, 0.3);
+	GfxSelectSolidBrush(bgcolor); GfxSetBkColor(bgcolor); 
+	GfxSelectPen(fgcolor, 1); GfxSetTextColor(fgcolor); 
+	GfxRoundRect(x, y, x+width, y+height, 4, 4); 
+	GfxDrawText(ticker, x+5, y+0.5*lineheight, x+width, y+1.5*lineheight, 1); y += 1.5*lineheight;
+	
+	// VWAP & Volume
+	rtvol = GetRTVolume(ticker); 
+	vwap = StrExtract(rtvol, 4, ';'); vwap = ""+PriceToStr(ticker, StrToNum(vwap));
+	Vol = Nz(StrToNum(StrExtract(rtvol, 3, ';'))); size = Nz(StrToNum(StrExtract(rtvol, 1, ';'))); 
+	y += 0.5*lineHeight; y1 = y; x1 = x;
+	SetBgColor(bgcolor2);
+	GfxDrawText("VWAP "+vwap, x1, y, x1+0.5*width,y+lineHeight, 1);
+	//GfxDrawText(vwap, x, y, x+140,y+lineHeight, 1); y += 2*lineHeight;
+	GfxDrawText("Volume "+VolumeToStr(Vol), x1+0.5*width, y, x1+width,y+lineHeight, 1); y += lineHeight;
+	// GfxDrawText(Vol, x, y, x+140,y+lineHeight, 1); y += 2*lineHeight;
+	
+	// Tape
+	SetBgColor(bgcolor);
+	GfxDrawText("     Last        Size       Time        ", x+5, y+0.5*lineheight, x+width-5, y+1.5*lineheight, 0);
+	// flash
+	y += 2*lineheight; d = 0.25*lineHeight;
+	for(i = 0; (line = StrExtract(list, i, '\n')) != ""; ++i) {
+		price = Nz(StrToNum(StrExtract(line, 0,'|')));
+		size = Nz(StrToNum(StrExtract(line, 1,'|'))); line = StrExtract(line, 2, '|');
+		if (flash && (size >= 10*minSize) && (minSize > 0)) SetBgColor(bgcolor3); 
+		else SetBgColor(bgcolor*(i & 1)+bgColor2*(!(i & 1)));
+		GfxDrawText(line, x+5, y, x+width-5, y+lineheight);
+		if (delta && (i < length-1)) {
+			before = Nz(StrToNum(StrExtract(StrExtract(list, i+1, '\n'), 0,'|')));
+			if (price > before) {
+				SetBgColor(bgColorUp); GfxRectangle(x+fontSize, y+d, x+1.8*fontSize, y+2*d);
+			} else if (price < before) {
+				SetBgColor(bgColorDown); GfxRectangle(x+fontSize, y+d, x+1.8*fontSize, y+2*d);
+			}
+		}
+		y += lineheight;
+	}
+	//
+	if (method) {
+		SetBgColor(bgColor);
+		GfxDrawText("( Tape based on RTVolume )", x0, y0+25, x0 + 280, y0 + 50, 1);
+	}
+}
+
+
+procedure drawSmallTape(ticker, length, minSize, x, y, fontSize, opt) {
+	global ibis;
+	
+	width = 170*fontSize/8; lineHeight = 32*fontSize/12;
+	flash = opt & 1; delta = opt & 2; method = opt & 4;
+	// if (method) list = RunTapeRTVolume(ticker, length, minSize); else
+	list = IBisRunTape(ticker, length, minSize); 
+	//
+	//GfxText("Method " + method + " - ibis list=\n"+list); // TO DEBUG
+	x0 = x; y0 = y;
+	
+	// height = (length + 5.0) * lineheight;
+	height = (length + 2.0) * lineheight;
+	
+	fgcolor = ColorBlend(colorWhite, colorLime, 0.7);
+	bgcolor = ColorBlend(colorBlack, colorDarkGrey, 0.9); 
+	bgcolor2 = ColorBlend(colorGreen, bgColor, 0.8); bgcolor3 = ColorBlend(colorOrange, bgColor, 0.6); 
+	bgColorUp = ColorBlend(colorGreen, bgColor, 0.1); bgColorDown = ColorBlend(colorRed, bgColor, 0.3);
+	GfxSelectSolidBrush(bgcolor); GfxSetBkColor(bgcolor); 
+	GfxSelectPen(fgcolor, 1); GfxSetTextColor(fgcolor); 
+	GfxRoundRect(x, y, x+width, y+height, 4, 4); 
+	GfxDrawText(ticker, x+5, y+0.5*lineheight, x+width, y+1.5*lineheight, 1); y += 1.5*lineheight;
+	
+	GfxMoveTo(x+0.3*width, y); GfxLineTo(x+width - 0.3*width, y);
+	/*
+	// VWAP & Volume
+	rtvol = GetRTVolume(ticker); 
+	vwap = StrExtract(rtvol, 4, ';'); vwap = ""+PriceToStr(ticker, StrToNum(vwap));
+	Vol = Nz(StrToNum(StrExtract(rtvol, 3, ';'))); size = Nz(StrToNum(StrExtract(rtvol, 1, ';'))); 
+	y += 0.5*lineHeight; y1 = y; x1 = x;
+	SetBgColor(bgcolor2);
+	GfxDrawText("VWAP "+vwap, x1, y, x1+0.5*width,y+lineHeight, 1);
+	//GfxDrawText(vwap, x, y, x+140,y+lineHeight, 1); y += 2*lineHeight;
+	GfxDrawText("Volume "+VolumeToStr(Vol), x1+0.5*width, y, x1+width,y+lineHeight, 1); y += lineHeight;
+	// GfxDrawText(Vol, x, y, x+140,y+lineHeight, 1); y += 2*lineHeight;
+	//*/
+	
+	// Tape
+	SetBgColor(bgcolor);
+	//GfxDrawText("     Last        Size       Time        ", x+5, y+0.5*lineheight, x+width-5, y+1.5*lineheight, 0);
+	// GfxDrawText("     Last        Size      ", x+5, y+0.5*lineheight, x+width-5, y+1.5*lineheight, 0);
+	// flash
+	y += 0.5*lineheight; d = 0.25*lineHeight;
+	for(i = 0; (line = StrExtract(list, i, '\n')) != ""; ++i) {
+		price = Nz(StrToNum(StrExtract(line, 0,';')));
+		size = Nz(StrToNum(StrExtract(line, 1,';'))); 
+		strPrice = StrExtract(line, 6, ';');
+		//*
+		// line = StrExtract(line, 2, '|');
+		// strPrice = PriceToStr(ticker, price);
+		line = StrFormat("  %-12s %6s  ", strPrice, ""+size);
+		if (flash && (size >= 10*minSize) && (minSize > 0)) SetBgColor(bgcolor3); 
+		else SetBgColor(bgcolor*(i & 1)+bgColor2*(!(i & 1)));
+		GfxDrawText(line, x+5, y, x+width-5, y+lineheight);
+		//*/
+		if (delta && (i < length-1)) {
+			before = Nz(StrToNum(StrExtract(StrExtract(list, i+1, '\n'), 0,'|')));
+			if (price > before) {
+				SetBgColor(bgColorUp); GfxRectangle(x+fontSize, y+d, x+1.8*fontSize, y+2*d);
+			} else if (price < before) {
+				SetBgColor(bgColorDown); GfxRectangle(x+fontSize, y+d, x+1.8*fontSize, y+2*d);
+			}
+		}
+		y += lineheight;
+	}
+	//
+}
+//////////
+
+colorBg = ColorBlend(colorBlack, colorDarkGrey, 0.9); 
+SetBgColor(colorBg);
+//Title = EncodeColor(colorOrange);
+Title = "";
+GfxSetZOrder(0); GfxSetBkMode(2); 
+GfxRectangle(0,0,2000,1000);
+GfxText("Test of GetRTVolume() & Tape");
+
+if (ibis) {} else GfxError("IBis not found");
+
+if (ibis && !ibis.IsConnected()) GfxError("Not connected to TWS");
+
+if (stop && StaticVarGet("Tape"+ticker+GetChartID())) {
+	StaticVarSet("Tape"+ticker+GetChartID(), 0);
+	switch(method) {
+		case 0: ibis.CancelRTVolume(ticker); break;
+		case 1: ibis.StopTape(ticker, clientId); break;
+		default: break;
+	}
+} else {
+	StaticVarSet("Tape"+ticker+GetChartID(), 1);
+	GfxSelectFont("Consolas", fontSize); 
+	drawTape(ticker, length, minSize, x, y, fontSize, options);
+	drawTape(ticker, length, minSize, x+300, y, fontSize, options|4);
+	
+	drawSmallTape(ticker, length, minSize, x+600, y, fontSize, options);
+}
+
+_SECTION_END();

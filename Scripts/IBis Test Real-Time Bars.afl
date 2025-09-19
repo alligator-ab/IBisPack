@@ -1,0 +1,33 @@
+_SECTION_BEGIN("IBis Test Real-Time Bars");
+
+#include_once "Formulas\Custom\GfxText.afl";
+GfxClear(colorWhite);
+
+GfxText("IBis Test Real-Time Bars\n\n");
+
+ibis = GetTradingInterface("IBis");
+
+key = "RTBars"+Name();
+id = StaticVarGet(key);
+if (id) GfxText("Subscribed with id = "+id);
+
+if (ParamTrigger("Subscribe", " [ CLICK ONCE TO SUBSCRIBE ] ")) {
+	if (id) ibis.CancelRealTimeBars(id);
+	id = ibis.SubscribeRealTimeBars(Name());
+	if (id) PopupWindow("Success. Subscribed to RTBars for "+Name()+" with ID = "+id, "SUCCESS");
+	StaticVarSet(key, id);
+}
+
+if (ParamTrigger("Cancel", " [ CLICK ONCE TO CANCEL ] ")) {
+	if (id) {
+		ibis.CancelRealTimeBars(id);
+		StaticVarRemove(key);
+	}
+}
+
+if (id) {
+	rtbars = ibis.RealTimeBars(id, 5);
+	GfxText(rtbars);
+}
+
+_SECTION_END();

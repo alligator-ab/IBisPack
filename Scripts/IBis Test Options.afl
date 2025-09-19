@@ -1,0 +1,50 @@
+_SECTION_BEGIN("IBis Options Test");
+#include_once "Formulas\Custom\GfxText.afl";
+#include_once "Formulas\Custom\IBis Test Tickers.afl";
+
+ibis = 0;
+ibis = GetTradingInterface("IBis");
+
+maxi = Param("max exchanges", 2, 1, 50);
+
+list = "ES,CME,FUT,495512569|"
+	+ "ZN,CBOT,FUT,587082857|"
+	+ "CL,NYMEX,FUT,296574757|"
+	+ "FGBL,EUREX,FUT,584592810|"
+	+ "AAPL,,STK,265598|" 
+	+ "IBM,,STK,8314|"
+	+ "|";
+
+GfxText("Test of Options Chains (max "+maxi+" exchanges/chain) among "+list);
+
+//what = ParamList("Select a request", list,0);
+
+procedure showChain(opt, maxi) {
+	local s, i, exch, conid, tradingClass, multiplier, expiry, strikes;
+	if (opt != "") 
+	for(i = 0; (s = StrExtract(opt, i, '\n')) != ""; ++i) {
+		if (i >= maxi) { GfxText("...(more)..."); break; }
+		exch = StrExtract(s, 0);
+		conid = StrExtract(s, 1);
+		tradingClass = StrExtract(s, 2);
+		multiplier = StrExtract(s, 3);
+		expiry = StrExtract(s, 4);
+		strikes = StrExtract(s, 5);
+		
+		GfxText(tradingClass + " ("+conid+") @ "+exch+" mult "+multiplier+" :\n  strikes   "+strikes+"\n  expiry    "+expiry);
+	}
+}
+
+if (ibis && ibis.IsConnected()) {
+	for(i = 0; (s = StrExtract(list, i, '|')) != ""; ++i) {
+	//if ((s = what) != "") {
+		symbol = StrExtract(s,0); exch = StrExtract(s,1); typ = StrExtract(s,2); underconid = StrExtract(s,3); 
+		opt = ibis.OptionChain(symbol, exch, typ, underconid);
+		GfxText("Option Chain for "+StrExtract(s,0)+":");
+		showChain(opt, maxi);
+	}
+} else {
+	GfxText("============ NOT CONNECTED ============");
+}
+
+_SECTION_END();

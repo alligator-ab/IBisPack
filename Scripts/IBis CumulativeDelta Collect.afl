@@ -1,0 +1,136 @@
+_SECTION_BEGIN("IBis CumulativeDelta Collect");
+/*
+Collect cumbid & cumask using ibis.Stats() to compute & store CumDelta, CumDeltaPct (-/+)
+
+USAGE: 
+1. Use Explore with Range 1 recent bar
+2. Apply to a constantly refreshing ticker e.g a currency pair EUR.USD-IDEALPRO-CASH
+3. Auto-Repeat this script every x sec/min according to database granularity (eg every 1min if 1min database)
+
+*/
+SetBarsRequired( sbrAll, sbrAll );// SetBarsRequired( 100000, 0 ); // Enough Bars to store correctly data
+SetOption("NoDefaultColumns", True ); // No default column
+
+prefix = ParamStr("Ticker", "ESU2"); //Name(); 
+//*
+chartID = GetChartID();
+
+function isMember(ticker, list) {
+	local s, i, res;
+	res = 0;
+	for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+		if (StrTrim(s, "") == ticker) { res = 1; break; }
+	}
+	return res;
+}
+
+function findTicker(prefix) {
+	global chartID;
+	local p, n, i, s, result;
+	
+	prefix = StrToUpper(StrTrim(prefix," ",3));
+	p = StaticVarGetText("Product"+chartID);
+	n = StrLen(prefix);
+	if (prefix == "") 
+		result = Name();
+	else if (StrLeft(p, n)==prefix)
+		result = p; 
+	else {
+		list = CategoryGetSymbols(categoryAll, 0);
+		for(i = 0; ((p = StrExtract(list, i)) != ""); ++i)
+			if (StrLeft(p, n)==prefix) break;
+		result = p;
+		if (p != "") StaticVarSetText("Product"+chartID, p); else {
+			// trying without first letter
+			for(i = 0; ((p = StrExtract(list, i)) != ""); ++i)
+				if (StrLeft(StrRight(p,StrLen(p)-1), n)==prefix) break;
+			result = p;
+			if (p != "") StaticVarSetText("Product"+chartID, p);
+		}
+	}
+	return result;
+}
+
+function findTickers(list) {
+	local i, s, res;
+	res = "";
+	for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+		res = FindTicker(s) + "," + res;
+	}
+	return res;
+}
+
+tickers = findTickers(prefix);
+//Filter = Name() == ticker;
+Filter = isMember(Name(), tickers);
+//Filter = 1;
+Title = "IBis Test Stats";
+
+options = ""; // ParamStr("Options", "");
+length = 1; // Param("Length", 1, 0, 20);
+
+function StrFindValue(s, key) {
+	local i, pair, value;
+	value = "0";
+	for(i = 0; (pair = StrExtract(s, i)) != ""; ++i) {
+		if (StrExtract(pair, 0, ':') == key) {
+			value = StrExtract(pair, 1, ':');
+			break;
+		}
+	}
+	return StrToNum(value);
+}
+
+function Get(what) {
+	//global ticker;
+	return StaticVarGet(what + Name());
+}
+
+procedure Set(what, val) {
+	local n, i;
+	// remove inter Null values if exploration is stopped
+	n = NullCount(val, 1); for(i = n; i < BarCount-1; ++i) if (IsNull(val[i])) { val[i] = val[i-1]; }
+	StaticVarSet(what + Name(), val);
+}
+
+procedure UpdateDelta(ticker) {
+	local ibis,res, cumbid, cumask, CumBidA, CumAskA, Delta, text, lastbarindex;
+	
+	ibis = GetTradingInterface("IBis");
+	if (ibis && ibis.IsConnected()) {
+		SetForeign(ticker);
+		//lastbarindex = BarCount-1;
+		lastbarindex = LastValue(Cum(1))-1;
+		res = ibis.Stats(ticker, options, length);
+		
+		res = StrExtract(res, 0, '\n');
+		cumbid = StrFindValue(res, "cumbid"); cumask = StrFindValue(res, "cumask");
+		index = StrFindValue(res, "index"); IndexA = Get("Index"); IndexA[lastbarindex] = index; Set("Index", IndexA);
+		CumBidA = Get("CumBid"); CumAskA = Get("CumAsk");
+		CumBidA[lastbarindex] = cumbid; CumAskA[lastbarindex] = cumask; //AddColumn(BarCount, "BarCount2", 1.0);
+		Set("CumBid", CumBidA); Set("CumAsk", CumAskA);
+		Delta = CumAskA - CumBidA; 
+		Set("CumDelta", Delta); Set("CumDeltaPct", 100*Delta/(CumBidA + CumAskA));
+		text = "cumbid = "+cumbid+"\n   cumask = "+cumask;
+		//PopupWindow(text, "CumDelta Last Data for "+ticker);
+		//AddRow(text); 
+		//AddRow(res);
+	} else {
+		AddRow("ERROR: UNABLE TO FIND IBIS");
+	}
+}
+
+if (LastValue(Filter)) {
+	UpdateDelta(Name());
+}
+//*
+AddTextColumn( Name(), "Ticker");
+AddTextColumn( DateTimeFormat("%X", LastValue(DateTime())), "Last Bar Time", formatDateTime );
+AddTextColumn( Now(2), "Time"); 
+AddColumn(LastValue(Get("Index")), "Index", 1.0);
+AddColumn(LastValue(Get("CumDelta")), "Cumulative Delta", 1.0);
+AddColumn(100*LastValue(Get("CumDeltaPct")), "Cumulative Delta %%");
+AddColumn(LastValue(Get("CumBid")), "CumBid", 1.0); AddColumn(LastValue(Get("CumAsk")), "CumAsk", 1.0);
+AddColumn(LastValue(Cum(1)), "BarCount", 1.0); 
+//*/
+_SECTION_END();

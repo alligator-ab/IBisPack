@@ -1,0 +1,56 @@
+// IBis Test MarketRule - ibis.MarketRule("ticker", "exchange"); 
+_SECTION_BEGIN("IBis Test MarketRule");
+
+#include "Formulas\Custom\IBis Test Tickers.afl";
+#include "Formulas\Custom\GfxText.afl";
+
+function ChangeSep(list, sep1, sep2) {
+	return StrReplace(list, ""+sep1, ""+sep2);
+}
+
+procedure showList(list, tab, from) {
+	global ibis;
+	local i, li, s, ticker, tickSizeRules;
+
+	li = from;
+	for(i = 0; (s = StrExtract(list, i, '|')) != ""; ++i) {
+		ticker = StrExtract(s, 0, '@'); exchanges = StrExtract(s, 1, '@');
+		tickSizeRules = ibis.MarketRule(ticker, exchanges); //Title = tickSizeRules;
+		GfxTextLC(s, li, tab);
+		li++;
+		for(j = 0; (s = StrExtract(tickSizeRules, j, '\n')) != ""; ++j) GfxTextLC(s, li+j, tab+1);
+		li += j;
+	}	
+}
+
+_colWidth = Param("Column Width (Tabs)", 5, 1, 10); 
+_col = 0;
+
+procedure showCol(list, from) {
+	global _col, _colWidth;
+	showList(list, _col*_colWidth, from); ++_col;
+}
+
+list0 = ChangeSep(FindTickers("ZN ,ZT ,TN ,SR3,ES,FGBL ,FOAT ,FBTP "), ",", "|");
+list1 = "VXU3-CFE-FUT|VIX   230721C00020000-SMART-OPT@|VIX 202307/C/20-SMART-OPT@|588771551";
+list2 =	"AAPL-SMART@EDGX|IBM-SMART@ISLAND|IBM@SMART|IBM-!ISLAND@ISLAND,SMART,NYSE|IBM@BATS|IBM@ARCA|AAPL-!ISLAND@NYSE|IBM@NYSE|IBM@ARCA";
+list3 = "AAPL-ISLAND-STK|AAPL|IBM|IBM-SMART";
+
+Title = "IBis Test MarketRule";
+ibis = GetTradingInterface("IBis");
+if (ibis && ibis.IsConnected()) {
+	col = 0; 
+	showCol(list0, 3);
+	showCol(list1, 3);
+	showCol(list2, 3);
+	for(i = 0; (s = StrExtract(list3, i, '|')) != ""; ++i) showCol(s, 3);
+	
+//	ticker = "VIX   230721C00020000-SMART-OPT"; 
+	ticker = "PETZ-SMART/NASDAQ"; 
+	fields = "lasttradedateorcontractmonth,right,strike,multiplier,conId,minTick,localSymbol,symbol,primaryExchange";
+	cd = ibis.ContractDetails(ticker, "");
+	GFxTextLC("Contract Details of "+ticker+"' = "+cd+"'", 1, 2);
+}
+
+_SECTION_END();
+

@@ -1,0 +1,51 @@
+This software is a fork from IBController written by Tomasz Janeczo. 
+As a consequence it has a double license, one for the original code and one for the modified and additional code.
+-------------------------------------------------------------------------------------------------------------------------------------
+
+IBController (Original Source Code) License
+======================
+
+Copyright (C)2004-2013 AmiBroker.com/Tomasz Janeczko. All rights reserved.
+
+IBController source codes are licensed under
+Creative Commons Attribution-ShareAlike 3.0 Unported  (CC BY-SA 3.0) License
+http://creativecommons.org/licenses/by-sa/3.0/
+
+For other licensing options contact support@amibroker.com
+
+DISCLAIMER
+
+AMIBROKER.COM MAKES NO REPRESENTATION ABOUT THE SUITABILITY OF THIS SOURCE CODE FOR ANY PURPOSE. 
+IT IS PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY OF ANY KIND. 
+AMIBROKER.COM DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOURCE CODE, 
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. 
+IN NO EVENT SHALL AMIBROKER.COM BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL, OR 
+CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, 
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, 
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOURCE CODE.
+
+IBis/BrokerIBis.exe (Modified, Additional Code) License
+===================================
+
+Copyright 2020-2023 @alligator. All rights reserved.
+
+IBis source codes are licensed under 
+Creative Commons Attribution-ShareAlike 3.0 Unported  (CC BY-SA 3.0) License
+http://creativecommons.org/licenses/by-sa/3.0/
+
+Both @alligator and contributors are designated by 'authors' in the following.
+
+DISCLAIMER
+
+AUTHORS MAKES NO REPRESENTATION ABOUT THE SUITABILITY OF THIS SOURCE CODE FOR ANY PURPOSE. 
+IT IS PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY OF ANY KIND. 
+AUTHORS  DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOURCE CODE, 
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. 
+IN NO EVENT SHALL AUTHORS BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL, OR 
+CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, 
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, 
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOURCE CODE.
+
+IN PARTICULAR AUTHORS WILL NOT BE RESPONSIBLE FOR ACCIDENTAL EXECUTIONS ON YOUR ACCOUNT AND 
+AUTHORS WILL NOT BE RESPONSIBLE FOR INACCURATE NOR MISSING INFORMATION.
+

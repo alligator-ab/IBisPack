@@ -1,0 +1,183 @@
+SYMBOLOGY - Additional Notes to Amibroker Symbology guide
+========
+(No index, use an editor search)
+
+A. HOW TO SPECIFY A CONTRACT IN IBIS API CALLS:
+
+There are 4 WAYS to specify a contract in IBis, you can use any of them and mix them :
+
+
+1. Use conId eg 
+
+516694810
+conId is the unique identifier for each contract in IB database. 
+It can be found in IBKR website or from TWS 'Details' (right-click),
+ and requested using ContractDetails() IBis API call with field 'conId' 
+
+___
+
+2. Use Amibroker 1 to 4 parts naming:
+
+LOCALSYMBOL-EXCHANGE-TYPE-CURRENCY
+
+The first part IS NOT THE SYMBOL but the LOCALSYMBOL (also called 'local Name').
+The local name is the name given by IB to contract. For stocks it's the stock symbol.
+
+For futures it's TRADINGCLASS EXPIRY for some, and SYMBOLOGY with M month code, Y year last digit for others eg
+FGBL MAR 23-EUREX-FUT-EUR
+CLH3-NYMEX-FUT
+
+For OPTIONS use either local symbol or TRADINGCLASS
+CURRENCY may be omitted if USD. TYPE may be omitted if STK (Stock). Exchange may be omitted if SMART.
+
+It's possible to specify primaryExchange with a leading ! in EXCHANGE field eg !NASDAQ (courtesy of Tomasz Janezco)
+or use IB special: EXCHANGE/PRIMARYEXCHANGE like SMART/NASDAQ
+AAPL-SMART/NASDAQ
+
+SMART/NASDAQ is equivalent to !NASDAQ but in some cases you want to specify a non-SMART trading venue.
+In summary, the left part is the trading venue (marketplace...) the second is the primary, original listing exchange.
+Some products can only be traded on a unique place so it's irrelevant for them (typically futures and fop)
+
+___
+
+3. Use EXTENDED NAMING:
+
+(Introduced in v0.9.9, this supersedes previous IBIS extensions for futures and options)
+
+As above but the FIRST PART is extended as follows:
+
+SYMBOL LASTTRADEDATE_OR_CONTRACTMONTH_OR_EXPIRY RIGHT STRIKE MULTIPLIER &
+
+Everything after the symbol is optional, but it must be ended by a & (mandatory).
+If a 'right' (P or C, for Puts or Calls) is used, it MUST be followed by a strike.
+
+For example :
+
+NVDA&					classic US stock using SMART exchange, could be replaced by NVDA
+
+TICK-NYSE &-NYSE-IND			TICK-NYSE computed TICK time series for the NYSE. & allows to remove ambiguity due to symbol name ('-')
+
+DAX 202506 &-EUREX-FUT-EUR		June contract for standard DAX
+
+DAX 202506 5 &-EUREX-FUT-EUR		June contract for mini DAX (with multiplier 5 instead of standard 25 €/pt)
+
+CL 202507 1 &-NYMEX-FUT			micro crude oil contract
+
+GBL 20250606 C 131 1000 &-EUREX-FOP-EUR	call option on GBL future expiry Jun 6th 2025 multiplier 1000 
+
+Important Notes:
+- use symbol in the first place, NOT the local symbol (they may be identical though)
+- it must end by &
+- use single space between words
+- use a single space before &
+- if a 'right' (P or C, for Puts or Calls) is used for options, it MUST be followed by a strike
+- multiplier is always last and is optional
+- in future versions (v1+), this will be extended for exchange-supported pairs : product1 & product2-EXCHANGE-CLASS-CURRENCY. 
+	e.g. ZN 202509 & ZN 202512-CBOT-FUT
+	NOT IMPLEMENTED YET 
+
+___
+
+4. Use a conventional Identifier such as ISIN or CUSIP:
+
+secIdType:'ISIN',secId:'JP3397210000'
+
+NB: it seems that FIGI is not supported, at least I didn't have success in using it...
+This notation uses minimal IBis syntax for contract specification (see below)
+ 
+___
+
+5. Use IBis JSON-like syntax for contract specification 
+
+comma-spearated list of FIELD:'VALUE'
+Fields are case-insensitive, space-insenssitive and named after fields in IB API doc at
+https://interactivebrokers.github.io/tws-api/classIBApi_1_1Contract.html
+eg if code is:
+    contract.symbol = "IBDE30";
+    contract.secType = "CFD";
+    contract.currency = "EUR";
+    contract.exchange = "SMART";
+specify:
+
+symbol:'IBDE30', secType:'CFD', currency:'EUR', exchange:'SMART'
+
+Each field in Contract can be filled. How to fill them is another story...sometimes TWS API doc is erroneous.
+
+
+IMPORTANT NOTES: 
+- for futures, always use 4 or 6 digits to specify contract month. Only one will work.
+- for options, always use 8 digits to specify last trade day/expiration date except for monthly options in IBIS new notation (see below)
+- symbol field for derivatives is typically the underlying. So use the trading class of the derivatives, or the local symbol but not the symbol !
+
+
+IBIS NEW NOTATION SPECIFIC TO FUTURES: [OBSOLETE - DO NOT USE]
+--------------------------------------------
+
+TRADINGCLASS 6DIGITSCONTRACTMONTH/MULTIPLIER-EXCHANGE-TYPE-CURRENCY
+
+Multiplier MUST BE OMITTED in general. Use it ONLY for specific cases such as DAX reduced size contracts which share 
+symbol with the normal size contract. If a different symbol is used for a reduced contract, use it and do not use multiplier.
+
+GBL 202303-EUREX-FUT-EUR
+CL 202303-NYMEX-FUT
+CL 202303/1-NYMEX-FUT			May or may not work...use MCL instead
+DAX 202303/5-EUREX-FUT-EUR			Ok
+
+IF TRADINGCLASS DOES NOT WORK USE SYMBOL INSTEAD !
+
+
+IBIS NEW NOTATION SPECIFIC TO OPTIONS/FOP/WARRANTS: [OBSOLETE - DO NOT USE]
+---------------------------------------------------------------
+
+TRADINGCLASS 8DIGITSEXPIRYDATE/RIGHT/STRIKE/MULTIPLIER-EXCHANGE-TYPE-CURRENCY
+
+I've introduced it to specify contracts more systematically, it's supported ONLY IN IBIS. Not in IBController, Not at IB servers level.
+So it's possible to easily code contracts names for a whole list of futures/options/fops contracts PROVIDED YOU HAVE EXPIRY DATES.
+(Not for futures, only month)
+
+IF TRADINGCLASS DOES NOT WORK USE SYMBOL INSTEAD !
+
+NEW 
+In case you need to specify a multiplier, as some exchanges don't have different symbols, you can use /MULT at end of 1st part.
+Should work for all contract types.
+
+NB: don't mix local symbol with this new 'slashed notation'. Either use full local Symbol as first part or use the slashed notation above
+
+=====================================================================
+
+B. HOW TO FILL CONTRACTS FIELDS:
+
+Read IB TWS API doc
+https://interactivebrokers.github.io/tws-api/basic_contracts.html
+
+
+
+[OBSOLETE - DO NOT USE]
+
+As mentioned above, in classical dashed notation THE FIRST PART IS THE LOCAL SYMBOL (aka LOCAL NAME)
+EXCEPT FOR STOCKS: USE SYMBOL particularly for japanese stocks (= for US stocks).
+
+Options: for US stock options, use OCC OSI symbology: SYMBOL OSI-SMART-OPT eg
+
+GOOG 230317P00095000-SMART-OPT-USD
+
+EUREX options do NOT use the compact format but the spaced format: (here a FOP, similar to stocks)
+
+C OGB1 20230203 135 M-EUREX-FOP-EUR [OBSOLETE - DO NOT USE]
+
+Spaced format: Right Symbol 8DigitsExpiryDate M
+Right is P or C, Expiry/Last Trade Date is ALWAYS 8 DIGITS. Be careful to set symbol in a 4 character spaces (so use 2 spaces after BMW)
+Typically Eurex options symbols have a digit in, eg 1BMW, BMWM5N etc USE EXCHANGE WEBSITE OR IBKR WEBSITE to find correct symbols.
+
+Options require last trading date, NOT last contract month ! So you must find the right date.
+
+FOP generally have a symbol different from the underlying future.
+
+CFDs seem to have symbol name starting by IB. Large indexes are US30, GE40, FR40, JP225 etc so -> IBJP225-SMART-CFD 
+https://ibkr.info/fr/article/1984 
+
+
+
+
+
+

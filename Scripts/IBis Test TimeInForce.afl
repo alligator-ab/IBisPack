@@ -1,0 +1,132 @@
+_SECTION_BEGIN("IB Test TimeInForce");
+
+#include "Formulas\Custom\IBis Test Tickers.afl";
+#include "Formulas\Custom\GfxText.afl";
+
+GfxText("IBis Test Time-In-Force\nClassic PlaceOrder field for testing new time-in-force format");
+GfxText("Note wrt date format: use either UTC format '20230801-10:15:00' or local (wrt contract primary exchange !!!) '20230801 10:15:00 US/Central' (US/Central for ES, RTY... CME=CHICAGO!)");
+Title = "";
+interface = ParamList("Interface", "IB|IBis", 1);
+ibis = GetTradingInterface(interface);
+
+order = ParamStr("Order", "Ticker:'MESU3-CME-FUT', Size:1, Type : 'LMT', Action: 'BUY', LimitPrice: 4530");
+tif = ParamStr("Time In Force DateTime Format", "20230723-15:15:00");
+order = order + ", TIF:'GTD " + tif + "'";
+modif = ParamStr("Modifications", "Size:2, LimitPrice: 1725");
+
+send = ParamTrigger("Send Order"," [ CLICK ONCE TO SEND ] ");
+modify = ParamTrigger("Modify Order", " [ CLICK ONCE TO MODIFY ] ");
+cancel = ParamTrigger("Cancel Order", " [ CLICK ONCE TO CANCEL ] ");
+
+function IsConnected() {
+	global ibis;
+	return ibis && ibis.IsConnected();
+}
+
+function sendOrder(tit, order) {
+	global ibis;
+	local id;
+	id = "";
+	if (ibis && ibis.IsConnected()) {
+		if (tit != "") PopupWindow("Sending Order:\n\n"+order, tit, 30);
+		id = ibis.PlaceOrderEx("Transmit: False, "+order);
+		PopupWindow("Last Order Id: "+id+"\nOrder:\n"+order, tit+" SENDING ORDER", 30);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Send Order:\n\n"+order, tit+" IBIS NOT CONNECTED", 30);
+	}
+	return id;
+}
+
+
+function modifyOrder(tit, id, order) {
+	local txt;
+	txt = "orderId: "+id+", "+order;
+	sendOrder("modifyOrder: "+txt, txt);
+}
+
+procedure cancelOrder(tit, id) {
+	global ibis;
+	if ((id != "") && ibis && ibis.IsConnected()) {
+		if (tit != "") PopupWindow("Cancelling Order:\n\n"+order, tit, 30);
+		ibis.CancelOrder(id);
+	}
+}
+
+function GetPositionSize(tit, ticker) {
+	global ibis;
+	local pos;
+	pos = "";
+	if (ibis && ibis.IsConnected()) {
+		pos = ibis.GetPositionSize(ticker);
+		if (tit != "") PopupWindow("Position for "+ticker+ " = "+pos, tit, 30);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Get Position:\n\n"+ticker, "IBIS NOT CONNECTED", 30);
+	}
+	return pos;
+}
+
+procedure StoreId(id) {
+	StaticVarSetText("IBisTestModifyOrderId"+GetChartID(), id);
+}
+
+function FetchId() {
+	return StaticVarGetText("IBisTestModifyOrderId"+GetChartID());
+}
+
+procedure StoreOrder(order) {
+	StaticVarSetText("IBisTestModifyOrderLastOrder"+GetChartID(), order);
+}
+
+function FetchOrder() {
+	return StaticVarGetText("IBisTestModifyOrderLastOrder"+GetChartID());
+}
+
+procedure AddError(s) {
+	GfxSetTextColor(colorError); GfxText(s); GfxSetTextColor(colorPen); 
+}
+////
+//SetBgColor(colorWhite);
+GfxText("Test of Modify Order using PlaceOrderEx()");
+
+posticker = ParamStr("Position/Ticker", Name());
+
+if (IsConnected()) {
+	
+	if (send) {
+		id = sendOrder("", order);
+		if (id != "") {
+			StoreId(id);
+			StoreOrder(order);
+		}
+	} else
+	if (modify) {
+		id = FetchId();
+		 //modifyOrder("Modify Order", id, modif); // HINT: SPECIFY ALL FIELDS !!!
+			// TWS DOES NOT ACCEPT THEM AS SOME FIELDS ARE UNSPECIFIED. 
+			// IN PARTICULAR EXCHANGE OF OPEN ORDER IS REQUIRED !
+		lastOrder = FetchOrder();
+		modifyOrder("Modify Order", id, lastOrder + ", " + modif);
+	} else 
+	if (cancel) {
+		id = FetchId();
+		cancelOrder("", id);
+	}
+	
+	ticker = posticker; // "MESZ2-GLOBEX-FUT";
+	list = ibis.GetExecList(0, "");
+	for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+		id = StrToNum(s);
+		stat = ibis.GetExecInfo(id, "Status");
+		symb = ibis.GetExecInfo(id, "Symbol"); symb = ""+symb; if (symb == "0") symb = "????";
+		filled = ibis.GetExecInfo(id, "Filled");
+		rem = ibis.GetExecInfo(id, "Remaining");
+		GfxText(StrFormat("%4s %10s %20s %10.0f/%.0f", s, symb, stat, filled, rem)); // "%4s %10s %10s %3s/%3s"
+	}
+	pos = GetPositionSize("", ticker);
+	GfxText("Position for "+ticker+": "+pos);
+		
+} else {
+	AddError("Not connected to TWS");
+}
+
+_SECTION_END();

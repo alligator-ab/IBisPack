@@ -1,0 +1,170 @@
+RELEASE NOTES
+=============
+
+0.9.7:
+-----
+Added PlaceBatchOrders(BSTR pszBatchOrders, long opt, [optional] VARIANT delay);
+	Batch Orders are a set of orders & guidelines to send and transmit a sequence of orders, possibly with a pause
+	They're specified as a string, one order per line and identified by a special number > 300000.
+Added BSTR GetBatchOrderStatus(long orderId, [optional] VARIANT pszFieldsList) to get info/status about batch orders
+
+Added BSTR Spread(BSTR pszTicker1, BSTR pszTicker2, [optional] VARIANT lRatio1, [optional] VARIANT lRatio2, [optional] VARIANT bIcs);
+	produces a string for placing a spread order with PlaceOrderEx()
+Added BSTR Hedge(long lParentOrderId, BSTR pszAction, BSTR pszTicker, BSTR pszHedgeType, [optional] VARIANT pszHedgeParam);
+	returns a string for placing an hedge order with PlaceOrderEx()
+
+Added BSTR PlaceBracketOrder(BSTR pszAction, long lSize, BSTR pszTicker, [optional] VARIANT dPrice, [optional] VARIANT dStopPrice, [optional] VARIANT dTargetPrice, [optional] VARIANT delay);
+	places a bracket order structured as a batch order. Returns an id for possible cancellation.
+
+IMPORTANT NOTE: those features are experimental/alpha and are published only for early testers. DO NOT USE THEM FOR LIVE TRADING. 
+	Some features may be blocked in your version.
+
+0.9.6:
+-----
+Bug fix re GetPositionSize()
+Introduction of config file 'BrokerIBis.cfg' (BrokerIBisLogPath='...' & more options)
+Orders saved/loaded (option SaveOrders=100000 OrdersFilename='...' LoadOrders=1)
+News saved/loaded (option SaveNews=50 NewsFilename='...' LoadNews=1)
+Optional asynchroous message processing
+Full list of options: see sample config file BrokerIBis.cfg
+Modified Account, with better listing, more options for GetAccountValue(field, currency, account)
+HistoricalSchedule() added (corresponds to reqHistoricalData() with whatToShow "SCHEDULE")
+
+0.9.5:
+-----
+Bug fixes.
+News-related API modified:
+	NewsArticle(articleId)										fetch an article
+	Headlines(maxHeadLines, symbol = "", providerCode = "")		last headlines, filtered by symbol & providerCode
+
+0.9.4:
+-----
+Added WhatIf(order, contract, fields). Allows to fetch impact of a (virtual) order such as margin. See 'IBis Test WhatIf.afl' for a sample use.
+Modified ParseOrderEx(): takes 2 args now, order and contract strings. 
+		ParseOrderEx("action:'BUY',orderType:'MKT',TIF:'GTC',Size:1000", "AAPL-!NASDAQ");
+Added RequestFA(faDataType), ReplaceFA(faDataType, strXMLAlloc) for financial advisors profiles/groups/aliases.
+Added Headlines(sNewsProviderCode, symbolOrArticleId, maxHeadlines) can be used as follows:
+		Headlines("DJNL", "AAPL", 10)	// Last 10 headlines about AAPL from DJNL
+		Headlines("", "AAPL", 10)		// All providers
+		Headlines("BFRG", "B000Af12")	// returns article from BFRG having id B000Af2 (provider, articleId -> article)
+Use limit to get only most recent ones. No limit or limit == 0 means second argument is an articleId, not a symbol
+
+Added Exec("Launch('notepad.exe')") and Exec("System('dir')") exec commands to run external programs.
+Added HeadTimestamp(ticker, whatToShow) (first date for historical data) eg HeadTimeStamp("ESH3-CME-FUT", "TRADES") (TRADES/MIDPOINT/BID/ASK/BID_ASK/AGGTRADES...)
+Added real-time 5 sec bars streaming:
+	reqId = SubscribeRealTimeBars(ticker, barSize = 5, what = "TRADES", rth = false)
+	CancelRealTimeBars(reqId) or CancelRealTimeBars(0, ticker)
+	bars = RealTimeBars(reqId, ticker, numLastBars)			with either reqId != 0 or ticker not empty
+Modified MarketDepth(): order books are automatically cancelled when limit (3) is reached (oldest first).
+Added ExecDetails(orderId). Returns the list of partial executions for a specific order (exchange, side, qty, liquidity, price...)
+Trying to accomodate UTF8 strings sent by TWS...
+
+0.9.3:
+-----
+Fixed a few regressions due to API upgrade. Updated scripts.
+Changed TickSize argument in PlaceOrder() and ModifyOrder(): when TickSize is < 0 it's the inverse of TickSize e.g:
+-128 is equivalent to 10000/128, tick size = 0.0078125
+-20000 is equivalent to 0.5 (=10000/20000), tick size = 0.00005
+-100 is equivalent to 100, tick size = 0.01
+
+0.9.2:
+-----
+Changed argument type for Quantity in PlaceOrder() and ModifyOrder(): int -> variant.
+As a consequence, it's possible to transmit an integer, a double float or a string (converted to Decimal internally)
+
+0.9.1:
+-----
+API version changed from 979 to 1019 (Stable)
+Decimal introduced
+Connection process improved
+Second parameter for CancelOrder (= Manual Order Cancel Time, string)
+New requests for Exec: UserInfo & CurrentTime
+Added GlobalCancel(), WshMetaData(), WshEventData(conId, from, to, filter, totalLimit), LastErrors(num, what)
+
+0.9.0:
+-----
+New minor version, BETA STATUS
+Fixed bug with OrderId field in PlaceOrderEx()
+Modified GetPositionSize() & GetPositionInfo() (reduce latency)
+
+0.8.9:
+-----
+Added OptionChain(), ImpliedVolatility(), OptionPrice(), ExerciseOptions(), HistogramData(), Scanner(), Stats()
+Scanner parameters are dumped at start in ScannerParameters.xml
+
+0.8.8:
+-----
+Fixed issues in contract parsing
+Added Dump of Contract Details in C:\Users\Public\Documents\ContractDetails.txt
+Improved requests cancelled at end
+Many Speed Improvements to Data Cache
+
+0.8.7:
+-----
+Added Inter-Process Communication facilities: SendMessage() ReceiveMessage() StoreData() FetchData() AddData() 
+Added MarketDepth() live order book data
+Added SoftDollarTiers()
+Added RunTape()
+Fixed Crash at start
+
+0.8.6:
+-----
+Added HistoricalData() to fetch data from IBKR & save it to a file or send it back into a string to the user (use "" as destFileName)
+- endDateTime must be "" if up to now
+- if keepUpToDate is True/1, output file is updated at every new bar
+
+Added MatchingSymbols(name_pattern) to get a comma-separated list/string of stocks matching name_pattern e.g "IBM"
+Added a few TWS API callbacks (specific to v979+)
+
+0.8.5:
+-----
+Added new syntax to define/declare contract: eg { conId: ... exchange: ... multiplier: ... } with or without { }
+Can be used everywhere a contract is used as input, PlaceOrder() included, not only PlaceOrderEx() & others.
+
+0.8.4:
+-----
+Added ContractDetails()
+FIXED News (at least for Bulletins)
+Added filter for News headlines
+
+0.8.3:
+-----
+FIXED:	regression for complex orders due to wrong update in 0.8.0. Now they're back & tested
+Added new fields to PlaceOrderEx:
+- nonGuaranteed:	(string/char) '1'/'0' equivalent to SmartComboRoutingParams with 'NonGuaranteed' field added. Much simpler.
+- manualOrderTime:	(string)	used by brokers for phone/email orders...
+
+Better diagnostics 
+
+0.8.2:
+-----
+CHANGED: field symbol in PlaceOrderEx() refers to contract.symbol field (was: symbol <-> ticker)
+	Use TICKER field to specify a ticker, NOT symbol
+	eg { Ticker: "ESM2-GLOBEX-FUT" ... } instead of { Symbol: "ESM2-GLOBEX-FUT" ... }
+	Now Symbol can be used to specify a contract eg
+		{ Symbol: "ES", secType: "FUT", primaryExchange: "GLOBEX", currency: "USD", expiry: "202206" ... }
+
+
+Added new fields to PlaceOrderEx:
+- contractID:	(long) unique contract identifier (IB specific, not ISIN) allows to specify a contract with this int instead of TICKER/SYMBOL
+- ticker:		(string) better name for SYMBOL (which means underlying symbol in IB API parlance)
+- multiplier:	(string) instrument multiplier, necessary because IB sometimes uses the same ticker for different multiplier (!)...
+- secIdType:	(string) type of secId, eg "ISIN", "CUSIP", "SEDOL", "RIC"
+- secId:		(string) security unique identifier in secIdType scheme
+- secType, expiry, currency, strike, right (PUT,CALL), tradingClass, localSymbol, primaryExch/primaryExchange fields to define contracts
+
+
+Modified:
+- exchange:		now takes priority over specified symbol/ticker.
+
+
+0.8.1:
+-----
+Added new field to PlaceOrderEx:
+- exchange:		(string) specify destination/route. Also useful for algos (CSFB...).
+
+
+0.8.0:
+-----
+{ ... } delimiters are unnecessary in PlaceOrderEx() argument.
+

@@ -1,0 +1,95 @@
+IBis v0.9.9
+
+LICENSE
+=======
+IBis is released under MIT License. It's a free, best and minimal effort library. There's no guarantee whatsoever about it.
+
+	USE IT AT YOUR OWN RISK. NEVER LET A SYSTEM USING IT WITHOUT MONITORING. 
+
+Intel Decimal library (see license) can be found here https://www.intel.com/content/www/us/en/developer/articles/tool/intel-decimal-floating-point-math-library.html
+TWS API (see license) can be found here https://interactivebrokers.github.io/
+
+The version of TwsSocketClient.dll in this package is a slightly modified version to cope with rounding quotations/prices errors and
+compiled by the author. Most users can (should) use the .dll compiled and provided by Interactive Brokers in their TWS API.
+
+
+INSTALL
+=====
+
+1. Copy BrokerIBis.exe, BrokerIBis.reg , biddll.dll  and BrokerIBis.cfg in Amibroker main directory. 
+	Optionally a version of TwsSocketClient.dll v1030 (32bits mod) can be installed too, in the same directory or in C:\Windows\SysWOW64\
+
+	Otherwise :
+	- download and unzip the latest version of Intel Decimal Floating Point Library ; look-up biddll.dll and install as mentioned above
+	- download and unzip (Recommended!) a stable version of TWS API (v1030+) ; look-up TwsSocketClient.dll and install it as mentioned above
+
+2. Register BrokerIBis in Windows register: right-click BrokerIBIs.reg and choose Merge - necessary only once at first install
+
+3. Create a directory IBis into AmiBroker Formulas directory and copy Scripts files into. (Formulas\IBis\...)
+
+4. Insert IBis formulas in scripts and charts to observe and learn how IBis API calls should be used. 
+	Read formulas to understand which/how arguments are used.
+
+5. Enjoy !
+
+
+INSTRUCTIONS FOR USING AB+IBIS:
+=======================
+
+1. Start IBKR TWS or Gateway
+
+2. Once TWS is up & running, run BrokerIBis ; TWS must be completely loaded and connected (servers, quotes, graphs, news...)
+
+3. Start AmiBroker. Use it as usual.
+
+NOTE: If BrokerIBis can't start (no window up, no process) the most probable problem is due to the lack of a MS library:
+	Microsoft Visual C++ runtime libraries vcredist_x64.exe for Visual Studio 2022
+Read:		https://docs.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170
+Download:  	https://aka.ms/vs/17/release/vc_redist.x64.exe 
+
+Read, download, install, and RESTART your PC. It should work.
+Another cause could be a library (.dll) not found. 
+
+
+CAVEAT:
+======
+
+If connection between BrokerIBis and TWS is lost, simply close IBis, wait for termination and restart it.
+In some cases, IBis may hang up and not close although it's properly done. In that case kill the program 
+using the Windows Task Manager and restart BrokerIBis.
+
+
+USAGE:
+=====
+To avoid confusion with BrokerIB, it's recommended to always use the following in your script:
+
+	ibis = GetTradingInterface("IBis");
+	if (ibis && ibis.IsConnected()) {
+		// ...
+	} else {
+		_TRACE("Unable to Connect to IBis");
+	}
+
+All available functions/procedures are listed in API.txt
+Read carefully provided scripts for recommended use.
+
+ALTERNATIVE: Create a script .afl (or import existing IBis.afl) to initialize ibis and a define necessary functions hiding calls to TWS API.
+See IBis.afl for an example.
+
+NOTES:
+=====
+1. biddll.dll is Intel Binary Decimal library and is required by IBKR/TWS for recent API clients. It's also the main culprit for IBis size. I'll got rid of this ridiculous lib in the near future. Please be patient.
+
+2. A few files are dumped into C:\Users\Public\Documents\ notably a database of all used contracts (ContractDetails.txt) used as a cache, and BrokerIB_LOG.txt used for debugging.
+	In case of a problem, please join it to your email. Don't forget to remove lines with your account number there.
+
+3. BrokerIBis.cfg is a configuration file used to modify IBis behaviour. Some options are for advanced users. The default one provided is the one to use when you start.
+
+4. Best way to understand IBis consists in trying and reading the dozen scripts in this pack.
+
+5. BrokerIBis aka IBis is independant from Amibroker. Although it's derived from IBController written by Tomasz Janesco, don't contact him for IBis.
+
+6. IBis can be used with or without Amibroker. Any program able to communicate with COM servers could be used. In particular you can use it with PowerShell scripts or python.
+
+7. IBis is 32bits because it uses COM technology. Provided libraries are 32 bits too.
+

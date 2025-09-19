@@ -1,0 +1,51 @@
+_SECTION_BEGIN("IBis WSH Test");
+
+#include_once "Formulas\Custom\GfxText.afl";
+#include_once "Formulas\Custom\IBis Test Tickers.afl";
+
+s = "Test of new IBController features: WshMetaData() & WshEventData(...)\n\n";
+
+ibis = GetTradingInterface("IBis");
+
+GfxText(s);
+MetaData = ibis.WshMetaData();
+GfxText("WSH MetaData: ");
+TextTab(" "+MetaData, 2);
+
+product = ParamStr("Instrument (prefix, ticker or conId)", "265598");
+conId = StrToNum(product);
+if (conId == 0) {
+	ticker = FindTickers(product); if (ticker != "") product = ticker;
+	conId = StrToNum(ibis.ContractDetails(product, "conId"));
+}
+
+start = ParamDate("Start Date", "2022-12-23", 0);
+finish = ParamDate("Last Date", "2022-12-31", 0);
+
+function datetostr(d, sep) {
+	yy = round(d / 10000);
+	d = d - yy*10000;
+	mm = round(d / 100);
+	d = d - mm*100;
+	dd = round(d);
+	return StrFormat("%4.0f%s%02.0f%s%02.0f",yy+1900, sep, mm, sep, dd);
+}
+
+function datetostr2(d) {
+	yy = round(d / 10000);
+	d = d - yy*10000;
+	mm = round(d / 100);
+	d = d - mm*100;
+	dd = round(d);
+	return StrFormat("%4.0f-%02.0f-%02.0f",yy+1900, mm, dd);
+}
+
+s = datetostr(start, "");
+f = datetostr(finish, "");
+Events = ibis.WshEventData(conId, s, f, "", 10);
+
+GfxText("WSH EventData for "+conId+" from "+datetostr(start,"-")+" to "+datetostr(finish,"-")+ "   ("+s+" to "+f+")");
+TextTab(" "+Events, 2);
+
+
+_SECTION_END();

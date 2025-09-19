@@ -1,0 +1,30 @@
+_SECTION_BEGIN("IBis Test GetRTData");
+
+Title = "Test of IBis GetRTData()\n";
+ibis = GetTradingInterface("IBis");
+
+//ibc = GetTradingInterface("IB");
+
+procedure AddTitle(s) {
+	global Title;
+	Title = Title + "\n" + s + "\n";
+}
+
+procedure testMktData(ticker, fields) {
+	AddTitle("GetMktData("+ticker+", "+fields+") = "+ibis.GetMktData(ticker, fields));
+}
+
+if (ibis && ibis.IsConnected()) {
+ticker = Name();
+
+//*
+testMktData(ticker, "BidPrice,AskPrice,BidSize,AskSize"); 
+testMktData(ticker, "0,1,2,3,4,5,6,7,8,9,14,21,54,55,56,86");
+//*/
+//testMktData(ticker, "0,1,2,3");
+} else {
+	AddTitle("IBIS NOT CONNECTED");
+}
+
+_SECTION_END();
+

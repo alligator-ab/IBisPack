@@ -1,0 +1,52 @@
+INSTALL
+=====
+
+1. Copy BrokerIBis.exe and BrokerIBis.reg and biddll.dll  in Amibroker main directory
+
+2. Register BrokerIBis in Windows register: right-click BrokerIBIs.reg and choose Merge - only once at first install
+
+3. Create a directory IBis into AmiBroker Formulas directory and copy Scripts files into.
+
+4. Insert IBis formulas to see how IBis API calls should be used. Read formulas to understand which/how arguments are used.
+
+5. Enjoy !
+
+
+INSTRUCTIONS FOR USING AB+IBIS:
+=======================
+
+1. Start IBKR TWS or Gateway
+
+2. Once TWS is up & running, run BrokerIBis
+
+3. Start AmiBroker. Use it as usual.
+
+NOTE: If BrokerIBis can't start (no window up, no process) the most probable problem is due to the lack of a MS library:
+	Microsoft Visual C++ runtime libraries vcredist_x64.exe for Visual Studio 2022
+Read:		https://docs.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170
+Download:  	https://aka.ms/vs/17/release/vc_redist.x64.exe 
+
+Read, download, install, and RESTART your PC. It should work.
+
+
+USAGE:
+=====
+To avoid confusion with BrokerIB, it's recommended to always use the following in your script:
+
+	ibis = GetTradingInterface("IBis");
+	if (ibis && ibis.IsConnected()) {
+		// ...
+	} else {
+		_TRACE("Unable to Connect to IBis");
+	}
+
+All available functions/procedures are listed in API.txt
+Read carefully provided scripts for recommended use.
+
+ALTERNATIVE: Create a script .afl (or import existing IBis.afl) to initialize ibis and a define necessary functions hiding calls to TWS API.
+See IBis.afl for an example.
+
+NOTES:
+=====
+biddll.dll is Intel Binary Decimal library and is required for recent API clients.
+

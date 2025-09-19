@@ -1,0 +1,214 @@
+_SECTION_BEGIN("IBis Test");
+Title = "Test of new IBController features - TRIGGER ORDERS USING PARAMETERS WINDOW\n"+
+	"Notes:\n" 
+	+ "1. for versions <8.0.2 'Exchange' must be after localSymbol to be effective\n"
+	+ "2. 'speedUp' field of Vwap IBALGO not valid due to IB\n"
+	+ "\n\n";
+ibc = GetTradingInterface("IBis");
+
+json = ParamStr("Order in JSON format", "{ Ticker:'ZF   JUN 22-ECBOT-FUT', Size:50, TIF: 'DAY', Type : 'LMT', Action: 'BUY', LimitPrice: 118.0078125 } ");
+send = ParamTrigger("Send Order"," [ CLICK ONCE TO SEND ] ");
+
+s = ParamStr("=====================", " ================================ ");
+
+procedure sendOrder(tit, order) {
+	if (ibc.IsConnected()) {
+		if (tit != "") PopupWindow("Sending Order:\n\n"+order, tit, 30);
+		ibc.placeOrderEx("Transmit: False, "+order);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Send Order:\n\n"+order, "IBIS NOT CONNECTED", 30);
+	}
+}
+
+baseOrder = " action:'BUY', orderSize:1, TIF:'DAY', ";
+
+
+testAdaptive = baseOrder+" algoStrategy: 'Adaptive', algoParams: { adaptivePriority: 'Normal' }, Exchange: 'IBALGO', Ticker:'ZF   JUN 22-ECBOT-FUT', Type : 'LMT', LimitPrice: 113.5078125 ";
+testAdaptive = ParamStr(" ======= Adaptive Test ======= ", testAdaptive);
+sendAdaptive = ParamTrigger(" Test Adaptive ", " [ CLICK ONCE TO SEND ADAPTIVE ORDER ] ");
+if (sendAdaptive) sendOrder(" Test Adaptive ", testAdaptive);
+
+
+testMidPrice = "  Action: 'BUY', Ticker:'IBM', Size:100, TIF: 'DAY', Type: 'MIDPRICE' ";
+testMidPrice = ParamStr(" ======= MidPrice Test ======= ", testMidPrice);
+sendMidPrice = ParamTrigger(" Test MidPrice ", " [ CLICK ONCE TO SEND MIDPRICE ORDER ] ");
+if (sendMidPrice) sendOrder(" Test MidPrice ", testMidPrice);
+
+
+testVWAP = "Action: 'BUY', Ticker:'ZF   JUN 22-ECBOT-FUT', Size:50, TIF: 'DAY', Type: 'MKT', algoStrategy: 'Vwap', algoParams: { maxPctVol: '0.1', startTime: '09:45:30 EST', endTime: '15:15:30 EST', allowPastEndTime: '0', noTakeLiq: '1' } ";
+testVWAP = ParamStr(" ======= VWAP Test ===(no 'speedUp'!)== ", testVWAP);
+sendVWAP = ParamTrigger(" Test VWAP ", " [ CLICK ONCE TO SEND VWAP ORDER ] ");
+if (sendVWAP) sendOrder(" Test VWAP ", testVWAP);
+
+
+testSpread1 = "size:1, action:'BUY', orderType:'MKT'"
+	+ ", symbol: 'CL.BZ', secType: 'BAG', currency: 'USD', exchange: 'NYMEX'"
+	+ ",comboLegs: [ { conId: 138979274, action: 'BUY', ratio: 1, exchange: 'NYMEX' }"
+	+ ", { conId: 173568190, action: 'SELL', ratio: 1, exchange: 'NYMEX' } ]"
+	+ ", Transmit: False";
+testSpread1 = ParamStr(" ======= Spread CL.BZ Test 1 ======= ", testSpread1);
+sendSpread1 = ParamTrigger(" Test Spread CL.BZ Test 1 ", " [ CLICK ONCE TO SEND SPREAD 1 ORDER ] ");
+if (sendSpread1) sendOrder("Spread Order 1", testSpread1);
+
+// Same Spread, using ratios +/- only
+testSpread2 = "size:1, action:'BUY', orderType:'MKT', "
+	+ "symbol: 'CL.BZ', secType: 'BAG', currency: 'USD', exchange: 'NYMEX',"
+	+ "comboLegs: [ { conId: 138979274, ratio: 1 },"
+	+ "			 { conId: 173568190, ratio: -1 } ]";
+testSpread2 = ParamStr(" ======= Spread CL.BZ Test 2 ====== ", testSpread2);
+sendSpread2 = ParamTrigger(" Test Spread CL.BZ Test 2 ", " [ CLICK ONCE TO SEND SPREAD 2 ORDER ] ");
+if (sendSpread2) sendOrder("Spread Order 2", testSpread2);
+
+// Spread WTI/COIL on IPE, SMART routed, non guaranteed
+// EXCHANGE MUST BE SPECIFIED ! AND Use COIL.WTI as symbol
+testSpread3 = "size:1, action:'BUY', orderType:'MKT', "
+	+ "symbol: 'COIL.WTI', secType: 'BAG', currency: 'USD', exchange:'IPE', nonGuaranteed:'0', "
+	+ "comboLegs: [ { conId: 144333367, ratio: 1, exchange:'IPE' },"
+	+ "			 { conId: 183405672, ratio: -1, exchange: 'IPE' } ] ";
+testSpread3 = ParamStr(" ======= Spread COIL.WTI Test 3 ====== ", testSpread3);
+sendSpread3 = ParamTrigger(" Test Spread 3 WTI.COIL ", " [ CLICK ONCE TO SEND SPREAD 3 ORDER ] ");
+if (sendSpread3) sendOrder("Spread Order 3 WTI.COIL", testSpread3);
+
+// Stock Spread SMART MKT
+// AMD: 4391, INTL: 270639
+testSpread4 = "size:100, action:'BUY', orderType:'MKT', "
+	+ "symbol: 'AMD,INTC', secType: 'BAG', currency: 'USD', exchange: 'SMART', nonGuaranteed:'1', "
+	+ "comboLegs: [ { conId: 4391, ratio: 1 }, { conId: 270639, ratio: -1 } ] ";
+testSpread4 = ParamStr(" ======= Spread AMD/INTC MKT Test 4 ====== ", testSpread4);
+sendSpread4 = ParamTrigger(" Test Spread 4 AMD/INTC ", " [ CLICK ONCE TO SEND SPREAD 4 ORDER ] ");
+if (sendSpread4) sendOrder("Spread Order 4 AMD/INTC", testSpread4);
+
+// Stock Spread SMART LMT
+// AMD: 4391, INTL: 270639
+testSpread5 = "size:100, action:'BUY', orderType:'LMT', "
+	+ "symbol: 'AMD,INTC', secType: 'BAG', currency: 'USD', exchange: 'SMART', nonGuaranteed:'1', "
+	+ "comboLegs: [ { conId: 4391, ratio: 1 }, { conId: 270639, ratio: -1 } ], "
+	+ "orderComboLegs: [ 103.0, 47.50 ] ";
+testSpread5 = ParamStr(" ======= Spread AMD/INTC LMT Test 5 ====== ", testSpread5);
+sendSpread5 = ParamTrigger(" Test Spread 5 AMD/INTC ", " [ CLICK ONCE TO SEND SPREAD 5 ORDER ] ");
+if (sendSpread5) sendOrder("Spread Order 5 AMD/INTC", testSpread5);
+
+////////////////////////// Order Conditions
+//
+/*
+IMPORTANT NOTES:
+1. ALWAYS set type:'...' FIRST in each and every condition
+2. DO NOT set a conjunction/connection (logic) in the LAST one condition
+3. ALWAYS set a conjunction in ALL BUT LAST condition
+
+*/
+ParamStr(" ======= COND1 Test ======= "," (NOT displayed, see below) DO NOT SET CONJUNCTION IN LAST COND !");
+cond1 = ParamStr("cond1 for test Cond1", "{ type:'PRICE', conID:	516099541, isMore:True, price: 121.0, conjunction:true }"); // ZN price > 121 AND
+cond2 = ParamStr("cond2 for test Cond1", "{ type:'VOLUME', conID: 516099541, isMore:True, volume: 1000000, conjunction:true }"); // ZN Volume > 1000000 AND
+cond3 = ParamStr("cond3 for test Cond1", "{ type:'TIME', isMore:True, Time: '10:00:00 CET', conjunction:true }"); // After 10:00
+cond4 = ParamStr("cond4 for test Cond1", "{ type:'TIME', isMore:False, Time: '15:00:00 CET' }"); // Before 15:00
+
+baseOrder = ParamStr("base Order for testCond1", "Action: 'BUY', Ticker:'ZF   JUN 22-ECBOT-FUT', Size:50, TIF: 'DAY', Type: 'MKT' ");
+testCond1 = StrFormat("Conditions: [ %s, %s, %s, %s ] , %s ", cond1, cond2, cond3, cond4, baseOrder);
+sendCond1 = ParamTrigger(" Test COND1 ", " [ CLICK ONCE TO SEND CONDITIONAL ORDER 1 ] ");
+if (sendCond1) sendOrder(" Test COND1 ", testCond1);
+
+
+////////////////////////// Scale Order 1
+// READ https://ibkr.info/es/node/1005
+ParamStr("======== Scale Order Test 1 ========= ", "                       ");
+basicOrders1 = ParamStr("base order for scale order 1", " action:'BUY', size: 50, ticker:'CLK2-NYMEX-FUT', type: 'LMT', limitPrice:96.0 ");
+scale1 = ParamStr("scaling for test1", " scaleInitLevelSize:20, scaleSubsLevelSize:10, scalePriceIncrement: 0.05 ");
+testScale1 = basicOrders1 + " , " + scale1;
+sendScale1 = ParamTrigger(" Test SCALE1 ", " [ CLICK ONCE TO SEND SCALE ORDER 1 ] ");
+if (sendScale1) sendOrder(" Test SCALE1 ", testScale1);
+
+////////////////////////// Scale Order 2
+ParamStr("======== Scale Order Test 2 ========= ", "                       ");
+basicOrders2 = ParamStr("base order for scale order 2", " action:'BUY', size: 50, ticker:'CLK2-NYMEX-FUT', type: 'LMT', limitPrice:96.0 ");
+scale2a = ParamStr("scaling for test2", " scaleInitLevelSize:20, scaleSubsLevelSize:10, scalePriceIncrement: 0.05, scaleRandomPercent:True ");
+scale2b = ParamStr("scaling for test2 (auto price adjust)", " scalePriceAdjustValue: 0.1, scalePriceAdjustInterval: 15  "); // Auto Price Adjustment
+scale2c = ParamStr("scaling for test2 (take profit)", " scaleProfitOffset: 1.50 "); // Take Profit orders
+scale2d = ParamStr("scaling for test2 (reset after take profit)", " scaleAutoReset: True, scaleInitPosition: 10, scaleInitFillQty: 10  "); // Take Profit orders
+testScale2 = basicOrders2 + " , " + scale2a + " , " + scale2b + " , " + scale2c + " , " + scale2d;
+sendScale2 = ParamTrigger(" Test SCALE2 ", " [ CLICK ONCE TO SEND SCALE ORDER 2 ] ");
+if (sendScale2) sendOrder(" Test SCALE2 ", testScale2);
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// BroadTape News
+ParamStr("======== BroadTape News Test ========= ", "                       ");
+btNewsProvider = ParamList("BroadTape News Provider (code)", "BRFG|DJNL");
+if (ParamTrigger("Subscribe to Broadtape News Provider above", " [ CLICK ONCE TO SUBSCRIBE ] "))
+	if (ibc.IsConnected()) ibc.SubscribeBroadTapeNews(btNewsProvider);
+// Contract Specific News
+ParamStr("======== News Test ========= ", "                       ");
+ticker = ParamStr("ticker for News Subscription", "NDX");
+newsProvider = ParamList("News Provider (code)", "BRFG|DJNL");
+if (ParamTrigger("Subscribe to Specific News with News Provider above", " [ CLICK ONCE TO SUBSCRIBE ] "))
+	if (ibc.IsConnected()) ibc.SubscribeNews(ticker, newsProvider);
+
+// Contract Details
+ParamStr("========== contractDetails Test ============= ", "                       ");
+fields = ParamStr("contract details/fields", "conId,minTick,multiplier");
+// ticker = ParamStr("ticker/symbol", Name()); //ParamStr("ticker", Name());
+ticker = Name();
+details = ibc.ContractDetails(ticker, fields);
+Title = Title + "Test of ContractDetails("+ticker+"): "+fields+"' of '"+ticker+"' = "+details+"\n";
+// conId 516099546
+ParamStr("========== contractDetails Test 2 ============= ", "                       ");
+// fields = ParamStr("ticker/contract details/fields 2", "conId,minTick,multiplier");
+contract2 = ParamStr("contract/ticker2", "conId: 516099546"); //ParamStr("ticker", Name());
+details2 = ibc.ContractDetails(contract2, fields);
+Title = Title + "Test of ContractDetails("+contract2+"): "+fields+"' of '"+contract2+"' = "+details2+"\n";
+ParamStr("========== contractDetails Test 3 ============= ", "                       ");
+// fields = ParamStr("ticker/contract details/fields 2", "conId,minTick,multiplier");
+contract3 = ParamStr("contract/ticker3", "516099546"); //ParamStr("ticker", Name());
+details3 = ibc.ContractDetails(contract3, fields);
+Title = Title + "Test of ContractDetails("+contract3+"): "+fields+"' of '"+contract3+"' = "+details3+"\n";
+
+// Historical Data
+ParamStr("========== Historical Data Test 1 ============= ", "                       ");
+// fields = ParamStr("ticker/contract details/fields 2", "conId,minTick,multiplier");
+contract = ParamStr("contract/ticker", "ESM2-GLOBEX-FUT"); //ParamStr("ticker", Name());
+endTime = ParamStr("endTime", "");
+duration = ParamStr("duration", "1 M");
+validSizes = "1 secs|5 secs|10 secs|15 secs|30 secs|1 min|2 mins|3 mins|5 mins|10 mins|15 mins|20 mins|30 mins|1 hour|2 hours|3 hours|4 hours|8 hours|1 day|1W|1M";
+barSize = ParamList("bar size", validSizes, 12);
+whatToshow = ParamStr("what to show", "TRADES");
+useRTH = ParamToggle("use RTH", "No|Yes", 1);
+formatDate = Param("formatDate", 1, 0, 1);
+keepUpToDate = ParamToggle("Keep uptodate", "No|Yes");
+destFilename = ParamStr("destination filename", "C:\\Users\\Public\\Documents\\HistoricalData.csv");
+
+if (ParamTrigger("Download Data", " [ CLICK ONCE TO DOWNLOAD ] ")) {
+	data = ibc.HistoricalData(contract, endTime, duration, barSize, whatToshow, 
+								useRTH, formatDate, keepUpToDate, destFileName);
+}
+
+
+Title = Title + "\n";
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// algoParams
+if (ibc.IsConnected()) {
+	orderslist = ibc.GetOrdersList("ID","");
+	res = "\n";
+	for(i = 0; (id = StrExtract(orderslist, i)) != ""; ++i) {
+		n = StrToNum(id);
+		res = res + StrFormat("\t    %.0f: %s\n", n, ibc.GetOrderInfo(n, "Status"));
+	}
+	//	
+	Title = Title 
+		+ StrFormat("Orders'list = %s\n\n", orderslist)
+		+ StrFormat("Orders'status = %s\n", res)
+	;
+	
+	times = ibc.GetOrdersList("Time","");
+	res = "";
+	for(i = 0; (id = StrExtract(orderslist, i)) != ""; ++i) {
+		n = StrToNum(id);
+		time = StrExtract(times, i);
+		res = res + StrFormat("\t    %.0f: %s\n", n, time);
+	}
+	Title = Title + "Orders'times = \n" + res;
+		
+	if (send) ibc.placeOrderEx(json);
+} else {
+	Title = "IBController NOT CONNECTED";
+}
+_SECTION_END();

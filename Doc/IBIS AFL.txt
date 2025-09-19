@@ -1,0 +1,9 @@
+I've coded a set of AFL routines on top of BrokerIBis API. This thin layer protects the user and sometimes makes things simpler by hiding details.
+It's highly recommended to use it.
+There are 2 files: 
+
+IBis.afl is a wrapper around api, with a few additional useful routines.
+IBisOrder.afl is a set of routines to place orders, both basic & complex
+
+As usual docs are in the .afl file
+Details will be written there if necessary.

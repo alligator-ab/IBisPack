@@ -1,0 +1,213 @@
+_SECTION_BEGIN("IBis Test Modify with PlaceOrderEx");
+
+#include "Formulas\Custom\IBis Test Tickers.afl";
+#include "Formulas\Custom\GfxText.afl";
+
+///////////////////
+ibis = GetTradingInterface("IBis");
+
+GfxText("IBis Test of Modify Order with PlaceOrderEx() - EXPLAINER FOR TIMEZONE ORDERS (Read Interpretation)");
+Title = "";
+
+
+product = ParamStr("Position/Ticker (Full or Prefix)", Name()); 
+ticker = FindTicker(product); if (ticker != "") product = ticker;
+order = ParamStr("Order", "Size:1, TIF: 'DAY', Type : 'LMT', Action: 'BUY', LimitPrice: 1730");
+order = "Transmit:False, Ticker:'"+product+"', " + order;
+modif = ParamStr("Modifications", "Size:2, LimitPrice: 1725, TIF:'GTC'");
+gtd = ParamStr("Good Till Date (empty: none)", "20230722 15:20:00");
+gat = ParamStr("Good After Time (empty: none)", "20230721 11:45:00");
+timezone = ParamList("TimeZone", "(none)|EST|CST|CET|US/Eastern|US/Central|Europe/Berlin|MET");
+
+send = ParamTrigger("Send Order"," [ CLICK ONCE TO SEND ] ");
+modify = ParamTrigger("Modify Order", " [ CLICK ONCE TO MODIFY ] ");
+cancel = ParamTrigger("Cancel Order", " [ CLICK ONCE TO CANCEL ] ");
+
+
+function PriceToStr(price) {
+	local res, f, fmt;
+	f = frac(512*frac(price));
+	if (f == 0) fmt = "%12g"; else fmt = "%7g"; //else fmt = "       %7g";
+	res = StrFormat(fmt, price);
+	return res;
+}
+
+function IsConnected() {
+	global ibis;
+	return ibis && ibis.IsConnected();
+}
+
+function sendOrder(tit, order) {
+	global ibis;
+	local id;
+	id = "";
+	if (ibis && ibis.IsConnected()) {
+		if (tit != "") PopupWindow("Sending Order:\n\n"+order, tit, 30);
+		id = ibis.PlaceOrderEx("Transmit: False, "+order);
+		PopupWindow("Last Order Id: "+id+"\nOrder:\n"+order, tit+" SENDING ORDER", 30);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Send Order:\n\n"+order, tit+" IBIS NOT CONNECTED", 30);
+	}
+	return id;
+}
+
+function modifyOrder(tit, id, order) {
+	global modif, gtd, gat;
+	local tz;
+	
+	order = order + ",orderId:"+id+","+modif;
+	if (timezone == "(none)") tz = ""; else tz = " "+timezone;
+	if (StrTrim(gtd,"") != "") order = order + ",goodTillDate:'"+gtd+tz+"'";
+	if (StrTrim(gat,"") != "") order = order + ",goodAfterTime:'"+gat+tz+"'";
+	
+	sendOrder("modifyOrder: "+order, order);
+	return order;
+}
+
+procedure cancelOrder(tit, id) {
+	global ibis;
+	if ((id != "") && ibis && ibis.IsConnected()) {
+		if (tit != "") PopupWindow("Cancelling Order:\n\n"+order, tit, 30);
+		ibis.CancelOrder(id);
+	}
+}
+
+function GetPositionSize(tit, ticker) {
+	global ibis;
+	local pos;
+	pos = "";
+	if (ibis && ibis.IsConnected()) {
+		pos = ibis.GetPositionSize(ticker);
+		if (tit != "") PopupWindow("Position for "+ticker+ " = "+pos, tit, 30);
+	} else {
+		PopupWindow("IBis NOT CONNECTED: Cannot Get Position:\n\n"+ticker, "IBIS NOT CONNECTED", 30);
+	}
+	return pos;
+}
+
+procedure StoreId(id) {
+	StaticVarSetText("IBisTestModifyOrderId"+GetChartID(), id);
+}
+
+function FetchId() {
+	return StaticVarGetText("IBisTestModifyOrderId"+GetChartID());
+}
+
+procedure StoreOrder(order) {
+	StaticVarSetText("IBisTestModifyOrderLastOrder"+GetChartID(), order);
+}
+
+function FetchOrder() {
+	return StaticVarGetText("IBisTestModifyOrderLastOrder"+GetChartID());
+}
+
+////
+
+if (IsConnected()) {
+	
+	if (send) {
+		id = sendOrder("", order);
+		if (id != "") {
+			StoreId(id);
+			StoreOrder(order);
+		}
+	} else
+	if (modify) {
+		id = FetchId();
+		 //modifyOrder("Modify Order", id, modif); // HINT: DO NOT USE ONLY MODIFIED FIELDS !!!
+			// TWS DOES NOT ACCEPT THEM AS SOME FIELDS ARE UNSPECIFIED. 
+			// IN PARTICULAR EXCHANGE OF OPEN ORDER IS REQUIRED (BUT NOT EXCLUSIVELY) !
+		lastOrder = FetchOrder();
+		order = "orderId:"+id+","+lastOrder+","+modif;
+		modifyOrder("Modify Order", id, order);
+	} else 
+	if (cancel) {
+		id = FetchId();
+		cancelOrder("", id);
+	}
+	
+	ticker = product; //posticker; 
+	pos = GetPositionSize("", ticker);
+	GfxText("Position for "+ticker+": "+pos);
+	
+	lastError = ibis.GetLastError(""+FetchId());
+	if (lastError != "") GfxError("Last Error: "+lastError);
+	
+	if (1-ParamToggle("Tab to use", "Executions-Pending|Orders", 1)) {
+		// Exec List
+		list = ibis.GetExecList(0, ""); 
+		if (list != "") {
+			GfxText("Executions");
+			for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+				id = StrToNum(s);
+				stat = ibis.GetExecInfo(id, "Status");
+				symb = ibis.GetExecInfo(id, "Symbol"); symb = ""+symb; if (symb == "0") symb = "????";
+				lmt = "";
+				filled = ibis.GetExecInfo(id, "Filled");
+				rem = ibis.GetExecInfo(id, "Remaining");
+				//ids = ibis.GetOrdersList("ID", "");
+				lmt = ibis.GetOrderInfo(s, "Limit Price"); aux = ibis.GetOrderInfo(s, "Stop Price");		
+				s  = StrFormat("%5s %20s %20s %5g/%g %18f %18f", s, symb, stat, filled, rem, lmt, aux); // "%4s %10s %10s %3s/%3s"
+				if (stat == "Error") GfxError(s); else GfxText(s);
+			}
+		}
+		// Pending List
+		list = ibis.GetPendingList(0, ""); 
+		if (list != "") {
+			GfxText("Pending Orders");
+			for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+				id = StrToNum(s);
+				stat = ibis.GetStatus(s, 1);
+				symb = ibis.GetOrderInfo(id, "Symbol"); symb = ""+symb; if (symb == "0") symb = "????";
+				lmt = "";
+				filled = ibis.GetOrderInfo(id, "Filled");
+				rem = ibis.GetOrderInfo(id, "Qty");
+				//ids = ibis.GetOrdersList("ID", "");
+				lmt = ibis.GetOrderInfo(s, "Limit Price"); aux = ibis.GetOrderInfo(s, "Stop Price");		
+				lmt = PriceToStr(lmt); aux = PriceToStr(aux);
+				type = ""+ibis.GetOrderInfo(s, "Type,Status,ID"); // Test of multiple fields
+				s = StrFormat("%5s %20s %20s %5g/%g %18f %18f", s, symb, stat, filled, rem, lmt, aux); // "%4s %10s %10s %3s/%3s"
+				if (stat == "Error") GfxError(s); else GfxText(s);
+			}
+		}
+	} else {	// Orders Tab
+		list = ibis.GetOrdersList("ID", "");
+		for(i = 0; (s = StrExtract(list, i)) != ""; ++i) {
+			id = StrToNum(s);
+			stat = ibis.GetOrderInfo(id, "Status");
+			symb = ibis.GetOrderInfo(id, "Symbol"); symb = ""+symb; if (symb == "0") symb = "????";
+			lmt = "";
+			filled = ibis.GetOrderInfo(id, "Filled");
+			rem = ibis.GetOrderInfo(id, "Qty");
+			//ids = ibis.GetOrdersList("ID", "");
+			lmt = ibis.GetOrderInfo(s, "Limit Price"); aux = ibis.GetOrderInfo(s, "Stop Price");		
+			lmt = PriceToStr(lmt); aux = PriceToStr(aux);
+			type = ""+ibis.GetOrderInfo(s, "Type,Status,ID"); // Test of multiple fields
+			s = StrFormat("%5s %30s     %12s %5g/%-5g %7s %15s %15s", s, symb, stat, filled, rem, type, lmt, aux);
+			if (stat == "Error") GfxError(s); else GfxText(s);
+		}
+	}
+
+} else {
+	GfxError("Not connected to TWS");
+}
+
+_N( explainer = "TIMEZONE AND ORDERS:\n\n"
++"IT'S POSSIBLE TO USE FIELD TIF:'GTD ...;GAT ...'\n"
++"OR FIELDS TIF:'GTD', goodTillDate:'...', goodAfterTime:'...'\n\n"
++"There are two valid formats for Date/time:\n"
++"\t 1. UTC: use YYYYMMDD-HH:MM:SS or\n"
++"\t 2. CONTRACT SPECIFIC: read contract spec to find correct timezone (at bottom) \n"
++"\t    AND use YYYYMMDD HH:MM:SS TZ where TZ may be, for instance:\n"
++"\t US/Central for ES* futures (Chicago)\n"
++"\t MET for FGBL* futures (Frankfurt, Mit Europa)\n"
++"All other seem to fail to this date.\n"
++"\nPS : use only a SINGLE-SPACE between date, time, timezone !\n");
+
+printf("\n\n\n\nExplainer:\n\n%s", explainer);
+
+if (ParamTrigger("TIMEZONE EXPLAINER", "  [ CLICK TO READ ] ")) {
+	PopupWindow(explainer, "VALID TIMEZONE AND ORDER FIELDS", 0);
+}
+
+_SECTION_END();

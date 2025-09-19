@@ -1,0 +1,49 @@
+_SECTION_BEGIN("IBis Exec Test");
+s = "Test of new IBController features: Exec() various forms\n\n";
+
+ibis = GetTradingInterface("IBis");
+
+gfxlogline = 0;
+
+procedure GfxLog(x, y, font, fontsize, s) {
+	global gfxlogline;
+	GfxSelectFont(font, fontsize);
+	GfxTextOut(s, x, y + gfxlogline*2.5*fontsize);
+	gfxlogline++;
+}
+
+procedure TextTab(s, n) {
+	local i, x;
+	for(i = 0; (x = StrExtract(s, i, '\n')) != ""; ++i)
+		GfxLog(0+50*n, 0, "Consolas", 9, x);
+}
+
+procedure Text(s) {
+	TextTab(s, 0);
+}
+
+procedure Exec(instr) {
+	if (ibis && ibis.IsConnected()) {
+		text(StrFormat("Request '%s':", instr));
+		res = ibis.Exec(instr); 
+		for(i = 0; (s = StrExtract(res, i)) != ""; ++i) TextTab(s, 2);
+	}
+}
+
+Text(s);
+Exec("Connection");
+Exec("Messages");
+Exec("Errors");
+Exec("UserInfo");
+Exec("CurrentTime");
+
+/* **************************************************** */
+
+Text(" \n \n \n");
+s = "Test of new IBController features: LastErrors() various forms\n\n";
+Text(s);
+errors = ibis.LastErrors(5, 2);
+Text("Last Errors:");
+TextTab(errors, 2);
+
+_SECTION_END();

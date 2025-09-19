@@ -1,0 +1,29 @@
+_SECTION_BEGIN("IBis Test Stats");
+
+//#include "Formulas\Custom\IBis Test Tickers.afl";
+#include "Formulas\Custom\GfxText.afl";
+
+ibis = GetTradingInterface("IBis");
+//GfxClear(colorRed); GfxColors(colorBlue, colorWhite);
+// GfxClear(colorBlack); GfxColors(colorLime, colorBlack);
+GfxClear(colorWhite); GfxColors(colorBlue, colorWhite);
+
+GfxText("IBis Test Stats");
+
+ticker = Name();
+options = ParamStr("Options", "");
+length = Param("Length", 1, 0, 20);
+
+////
+//GfxSetBgColor(colorWhite);
+GfxText("Use Tick by Tick Market Data, limited by user subscriptions");
+GfxText("    cumbid = cumulative ticks at bid, cumask = ...at ask, rate = ticks/min, flow = volume/min, tickcount from day open");
+
+if (ibis && ibis.IsConnected()) {
+	res = ibis.Stats(ticker, options, length);
+	GfxText("Stats (based on last "+length+" ticks) of "+ticker+": \n"+res);
+} else {
+	GfxError("Not connected to TWS");
+}
+
+_SECTION_END();

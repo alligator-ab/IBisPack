@@ -1,0 +1,116 @@
+_SECTION_BEGIN("IBis CumDelta");
+// IBIS Fetch CumDelta & CumDeltaPct of Current Ticker
+// Use Collected & Computed data from Exploration 'IBis CumulativeDelta Collect' (THE LATTER MUST BE RUNNING IN EXPLORER !)
+
+ticker = Name();
+
+function Prune(A, limit) {
+	return ValueWhen(!IsNull(A) && (A != 0) && (abs(A) <= limit), A); //IIf(abs(A) > limit, Null, A);
+}
+
+function Get(what) {
+	global ticker;
+	local serie, gap, delta;
+	serie = StaticVarGet(what + ticker);
+	gap = (serie != 0) && (Ref(serie, -1) == 0);
+	delta = IIf(gap, serie - ValueWhen(serie != 0, serie, 2), 0);
+	return Prune(serie - delta, 1000000);
+	//return StaticVarGet(what + ticker);
+}
+
+CumBid = Get("CumBid"); CumAsk = Get("CumAsk"); CumDelta = CumAsk-CumBid;
+CumDeltaPct = int(100*Get("CumDeltaPct"));
+CumBidSize = Cum(Get("BidSize")); CumAskSize = Cum(Get("AskSize")); 
+//Plot(CumBidSize-Ref(CumBidSize,-1), "", colorBlack, styleThick); 
+//Plot(CumAskSize-Ref(CumAskSize,-1), "", colorBlue, styleThick);
+
+k = 10;
+// remove first quotes, too 'strange'
+CumAskSize = IIf(Ref(CumAskSize,-k), CumAskSize, Null); CumBidSize = IIf(Ref(CumBidSize,-k), CumBidSize, Null);
+
+CumSize = CumAskSize+CumBidSize; CumDeltaSize = CumAskSize-CumBidSize; 
+CumDeltaSizePct = int(100*MA(CumDeltaSize, k)/MA(CumSize, k));
+
+color = IIf(CumDelta > 0, colorGreen, IIf(CumDelta < 0, colorRed, null));
+
+showdeltapct = ParamToggle("Show CumDelta %", "No|Yes");
+
+show = ParamList("Show", "None|CumDelta|CumDeltaPct", 1);
+E = 0;
+
+switch(show) {
+	case "None": break;
+	case "CumDelta": E = CumDelta; if (!showdeltapct) Plot(CumDelta, "CumDelta", color, styleThick); break;
+	case "CumDeltaPct": E = CumDeltaPct; if (!showdeltapct) Plot(CumDeltaPct, "CumDelta %%", color, styleThick); break;
+	default: break;
+}
+
+CP = 1000*CumDelta/(CumBid+CumAsk); minCP = LastValue(Lowest(CP)); maxCP = LastValue(Highest(CP));
+CP = IIf(Ref(CP,-30), CP, Null); // Past first 15 min
+
+if (showdeltapct) {
+	style = styleOwnScale; style = styleLeftAxisScale; style = styleLine;
+	Plot(CP, "CumDelta/Vol", colorBlueGrey, styleThick | style, minCP, maxCP);
+	Plot(EMA(CP,100), "ignal CumDelta/Vol", colorGrey40, styleLine | style, minCP, maxCP);
+	//Plot(0, "", colorBlueGrey, styleThick | styleOwnScale, minCP, maxCP);
+	CI = (1*MA(CumDelta,k)/MA(CumSize,k)); 
+	//CI = CumDelta/CumSize;
+	//CI = Max(minCP, CI); CI = Min(maxCP, CI);
+	Plot(CI, "CumDelta/Size", colorBrown, styleThick|styleLeftAxisScale); //, minCP, maxCP);
+	PlotGrid(0);
+}
+
+periods = Param("periods", 200, 50, 250, 10);
+
+//E = IIf(Ref(E,-1), E, Null);
+M = EMA(E, periods);
+
+if (!showdeltapct) {
+	Plot(M, "Signal", colorDefault, styleLine);
+	//Plot(LastValue(E), "Last", color, styleLine|styleNoLabel|stylenodraw);
+	Plot((E), "Last", color, styleLine|styleNoLabel|stylenodraw);
+	//Title = "Last CumDelta = "+LastValue(CumDelta);
+}
+
+// Dynamic CD
+BI = BarIndex();
+start0 = SelectedValue(BI); //start = 0;
+start = max(SelectedValue(BI), NullCount(E)+1);
+//if (!start || IsNan(start)) start = NullCount(E)+10;
+if (start && !showdeltapct) {
+	P = IIf(BI < start, Null, E);
+	n = BI-start+1;
+	// CD = EMA(P,n); // Sum(V*P,n)/Sum(V,n);
+	CD = IIf(n > 0, MA(E,n), Null);
+	CD = MA(E,n);
+	Plot(CD, "Avg CD", colorblue, styleThick);
+}
+
+
+
+// Dynamic Volume share from selectedvalue to last
+if (start && !showdeltapct) {
+	P = IIf(BI < start0, Null, V);
+	n = BI-start0+1;
+	// CD = EMA(P,n); // Sum(V*P,n)/Sum(V,n);
+	CV = IIf(n > 0, Cum(P), Null);
+	CV = IIf(n > 0, Sum(V, n), Null);
+	CV = 100*CV/LastValue(CV); style = styleOwnScale; //style = styleLeftAxisScale;
+	Plot(0.5*CV, "Half Vol", colorYellow, styleLine|style);
+	Plot(CV, "Cum Vol Share", colorOrange, styleArea|style);
+}
+
+//Plot(200*CumDelta/(CumBid+CumAsk), "", colorLime, styleThick, styleOwnScale, 0, 100);
+//Title = "TODO: Compute CumDelta vs CumBid/CumAsk (read script)";
+
+/*
+L'idée est que ce qui détermine le mouvement n'est pas tant la taille des ordres qui tapent le BBid ou BAsk
+Mais plutôt le rapport entre leur taille et ce qui est offert/demandé 
+car même de petits ordres peuvent déplacer les cours si 
+Si gros trend, ce ratio devrait être élevé 
+On pourrait aussi afficher le CumBid+CumAsk comme un indicateur d'activité
+ou CumBid/Cum(GetRTData("Bid"));
+ou 200*CumDelta/(CumBid+CumAsk);
+//*/
+
+_SECTION_END();

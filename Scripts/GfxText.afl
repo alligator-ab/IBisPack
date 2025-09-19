@@ -1,0 +1,124 @@
+_SECTION_BEGIN("GfxText");
+
+_N( fontface = ParamList("Font Face", "Consolas|Arial|Tahoma") );
+fontsize = Param("Font size", 9, 7, 15);
+GfxSelectFont(fontface, fontsize);
+
+_gfxTextline = 0; _gfxTextcol = 0;
+_gfxspacingfactor = Param("Spacing Factor", 1.8, 1.0, 3.0, 0.1);
+_gfxTextlineheight = _gfxspacingfactor*fontsize; 
+_gfxpadding = 4; _gfxTextcols = 100;
+_gfxTextcolwidth = Param("Gfx Text Column Width", 50, 50, 200, 10);
+
+colorNormal = ParamColor("Normal Text Color", colorBlack);
+colorError = ParamColor("Error Color", colorRed);
+
+procedure GfxTextColors(colorFg, colorBg) {
+	GfxSelectSolidBrush( colorBg ); GfxSelectPen( colorBg ); 
+	GfxSetTextColor(colorfg); GfxSetBkColor(colorbg); GfxSelectPen(colorfg, 1); 
+}
+
+procedure GfxTextClear(line, col, nlines, ncols) {
+	global _gfxTextlineheight, _gfxTextcolwidth;
+	local li, co;
+	li = line*_gfxTextlineheight;
+	co = col*_gfxTextcolwidth;
+	GfxRectangle(co, li, co+ncols*_gfxTextcolwidth, li+nlines*_gfxTextlineheight);
+}
+
+procedure GfxTextClearScreen() {
+	GfxTextClear(0,0,100,100);
+}
+
+procedure GfxTextReset(line, col) {
+	global _gfxTextline, _gfxTextcol;
+	_gfxTextline = line;
+	_gfxTextcol = col;
+}
+
+procedure GfxTextLC(s, line, col) {
+	global _gfxTextlineheight, _gfxTextcolwidth;
+	GfxTextOut(""+s, col*_gfxTextcolwidth, line*_gfxTextlineheight);  
+}
+
+procedure GfxText(text) {
+	global _gfxTextline, _gfxTextcol;
+	local s, i;
+	for(i = 0; (s = StrExtract(text, i, '\n')) != ""; ++i) {
+		GfxTextLC(s, _gfxTextline, _gfxTextcol);
+		_gfxTextline++;
+		if (i > 100) break;
+	}
+}
+
+procedure GfxError(text) {
+	GfxSetTextColor(colorError);
+	GfxText(text);
+	GfxSetTextColor(colorNormal);
+}
+
+procedure GfxTextListing(head, content, line, col) {
+	global _gfxTextcolwidth;
+	local lines, cols, wi, i;
+	wi = 0;
+	if (head != "") {
+		GfxTextLC(head, line, col);
+		GfxMoveTo(col*_gfxTextcolwidth, line*_gfxTextlineheight);
+		GfxLineTo((col+1)*_gfxTextcolwidth, line*_gfxTextlineheight);
+		line++;
+	}
+	for(i = 0; (s = StrExtract(content, '\n')) != ""; ++i) {
+		GfxTextLC(s, line, col);
+		line++;
+		if (i > 100) break;
+	}
+}
+
+procedure GfxTextWindow(headline, line, col, height, width) {
+	global _gfxTextline, _gfxTextcol, _gfxTextlineheight, _gfxTextcolwidth, _gfxpadding;
+	local li, co, wi, he, pad;
+	
+	if (headline != "") height++;
+	li = line*_gfxTextlineheight; co = col*_gfxTextcolwidth;
+	he = height*_gfxTextlineheight; wi = width*_gfxTextcolwidth;
+	pad = _gfxpadding;
+	GfxRectangle(co-pad, li-pad, co+wi+pad, li+he+pad);
+	if (headline != "") {
+		GfxDrawText(headline, co, li, co+wi, li+_gfxTextlineheight, 1);
+		GfxMoveTo(co+pad, li+_gfxTextlineheight-pad);
+		GfxLineTo(co+wi-pad, li+_gfxTextlineheight-pad);
+		line++;
+	}
+	GfxTextReset(line, col);
+}
+
+_gfxlogline = 0;
+
+procedure GfxLog(x, y, font, fontsize, s) {
+	global _gfxlogline;
+	GfxSelectFont(font, fontsize);
+	GfxTextOut(s, x, y + _gfxlogline*2.0*fontsize);
+	_gfxlogline++;
+}
+
+procedure GfxTextTab(s, n) {
+	local i, x;
+	for(i = 0; (x = StrExtract(s, i, '\n')) != ""; ++i)
+		GfxLog(0+50*n, 0, "Consolas", 9, x);
+}
+
+procedure TextTab(s, n) {
+	GfxTextTab(s, n);
+}
+
+procedure GfxColors(fgcolor, bgcolor) {
+	GfxSetTextColor(fgcolor);
+	GfxSetBkColor(bgcolor);
+}
+
+procedure GfxClear(bgcolor) {
+	GfxSelectSolidBrush(bgcolor);
+	GfxRectangle(0, 0, 2000, 1000);
+}
+
+_Section_end();

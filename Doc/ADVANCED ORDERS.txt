@@ -1,0 +1,66 @@
+ADVANCED ORDERS
+==============
+
+1. SPREADS:
+--------------
+To specify Spread Contracts in PlaceOrderEx(), use the comboLegs field.
+For instance, to specify the first example (Stocks Spread) in TWS API doc
+
+"comboLegs:[ { conId:43645865, action:BUY, ratio:1, exchange:SMART } , { conId:9408, action:SELL, ratio:1, exchange:SMART } ], symbol:MCD, secType:BAG, currency:USD, exchange:SMART"
+
+Each leg is specified as an object in the list (array) of legs.
+
+It's possible to use the helper Spread(ratio1, ticker1, ratio2, ticker2, guaranteed) to create a correct string you can submit to PlaceOrderEx()
+
+
+2. HEDGES:
+-------------
+You must place the PARENT order FIRST with TRANSMIT at FALSE.
+Then place a second order, the hedge as follows:
+
+"parentId:...., hedgeType:F, quantity:0, ...."
+
+You must specify the parent Id, hedge type, and for FX hedges quantity must be set to 0. 
+Do not forget to specify the contract (FX here) at the same time !
+
+It's possible to use the helper Hedge(parentId, parentActio, hedgeTicker, hedgeType, hedgeParam) to create a correct string you can submit to PlaceOrderEx()
+
+
+3. BRACKETS:
+---------------
+All components must be placed with the Transmit flag set to false, except for the last one.
+You can set its Transmit flag to true or use the Transmit(orderId) call to set it after placing it.
+The first order is used as parent: set the parentId field of the othe legs to its parentId.
+The stop and the target must have an action opposite to the main leg (BUY <-> SELL).
+Of course you must specify the same contract for the 3 legs. 
+
+Example: 
+
+You specify the contract:
+contract = ",....,"
+
+First order:
+	"action:BUY, totalQuantity:100, orderType:LMT, lmtPrice:35.20, transmit:false,"+ contract
+
+You get its parentId as immediate answer.
+
+Second order (target):
+	"action:SELL, totalQuantity:100, orderType:LMT, lmtPrice: 36.0, transmit:false, parentId:" + parentId + "," + contract 
+
+Third order (stop):
+	"action:SELL, totalQuantity:100, orderType:STP, lmtPrice: 35.0, transmit:true, parentId:" + parentId + "," + contract 
+
+
+EXPERIMENTAL ONLY !
+Since v0.9.7 It's possible to place a bracket order as a batch order using 
+	PlaceBracketOrder(action, size, ticker, price, stopPrice, targetPrice, delay)
+
+
+4. OCA:
+--------
+OCA can be used to place exclusive orders, where only one of them in the group will be executed.
+It can be used to achieve alternative goals or even place brackets.
+A classic bracket can be replaced by a main order and an oca group composed of a stop and a target orders.
+
+
+

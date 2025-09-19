@@ -1,0 +1,164 @@
+_SECTION_BEGIN("IBis Test Scanner");
+
+#include "Formulas\Custom\GfxText.afl";
+
+///////////////////
+ibis = GetTradingInterface("IBis");
+
+GfxClear(colorWhite);
+Title = "IBis Test Scanner";
+
+scan1 = "instrument:STK,locationCode:STK.US.MAJOR,scanCode:'TOP_PERC_GAIN',abovePrice:10"; // NB : 'HOT BY VOLUME' disabled by IB ?
+scan2 = "instrument:NATCOMB,locationCode:NATCOMB.OPT.US,scanCode:'COMBO_LATEST_TRADE'";
+scan3 = "instrument:STOCK.EU,locationCode:STK.EU.IBIS,scanCode:'TOP_PERC_GAIN'";
+scan4 = "instrument:FUT.EU,locationCode:FUT.EU.EUREX,scanCode:'MOST_ACTIVE'";		// Replace HOT_BY_VOLUME ?
+scan5 = "instrument:IND.US,locationCode:IND.US,scanCode:'HIGH_OPT_VOLUME_PUT_CALL_RATIO'";	
+scan6 = "instrument:FOP.EU,locationCode:FOP.EU.EUREX,scanCode:'TOP_PERC_GAIN'";
+scans = StrFormat("%s|%s|%s|%s|%s|%s", scan1, scan2, scan3, scan4, scan5, scan6);
+
+scanum = Param("Scan Test n°", 1, 1, 6);
+ScanTest = StrExtract(scans, scanum-1, '|');
+/*
+switch(scanum) {
+	case 1: scanTest = scan1; break;
+	case 2: scanTest = scan2; break;
+	case 3: scanTest = scan3; break;
+	case 4: scanTest = scan4; break;
+	case 5: scanTest = scan5; break;
+	default: scanTest = ""; break;
+}
+//*/
+length = Param("Max Number of Rows", 30, 5, 50, 5);
+snapshot = ParamToggle("Snapshot ?", "No|Yes");
+
+
+function Scan(s, length, snapshot) {
+	global ibis;
+	local res, res2, i, s, ticker, vol;
+	if (length < 50) s = s + ",NumberOfRows:"+length;
+	res = ibis.Scanner(s, "", "", snapshot);
+	//*
+	res2 = "";
+	for(i = 0; (s = StrExtract(res, i, '\n')) != ""; ++i) {
+		ticker = StrExtract(s, 0);
+		if (ticker != "") {
+			vol = GetRTDataForeign("TotalVolume", ticker);
+			if (IsEmpty(vol)) {
+				vol = LastValue(Cum(Foreign(ticker, "V")));
+				//vol = Foreign(ticker, "V");
+			}
+			// res2 = res2 + StrFormat("%20s       %20g\n", ticker, vol); // res2 = res2 + (ticker + "," + vol +"\n");
+			res2 = res2 + ticker + "," + vol + "\n";
+		}
+	}
+	res = res2;
+	//*/
+	GfxText("Scan: "+s+"\n"+res);
+	return res;
+}
+
+// compute col widths, factor should be > 1, 1.15 is fine
+function ColumnsWidths(table, headers, factor, fontsize) {
+	local sizes, wi, line, j, i, col;
+	sizes = "";
+	GfxSelectFont("Consolas", fontsize);
+	//line = StrExtract(table, 0, '\n'); 
+	col = 0; for(col = 0; StrExtract(headers, col) != ""; ++col){};
+	for(j = 0; j < col; ++j) {
+		wi = GfxGetTextWidth(StrExtract(headers, j));
+		for(i = 0; (line = StrExtract(table, i, '\n')) != ""; ++i) {
+			wi = Max(wi, GfxGetTextWidth(StrExtract(line, j)));
+		}
+		wi = factor*wi;
+		sizes = sizes + wi + ",";
+	}
+	return sizes;
+}
+
+procedure GfxDrawTable(table, headers, sizes, x0, y0, fontsize, align) {	
+	local colorbg, colorfg, coloralt, width, height, i, j, col, line, x, y, wi, sizes, lines;
+	
+	GfxSelectFont("Consolas", fontsize);
+	lineheight = 2.7*fontsize;
+	lineheight = 3*fontsize;
+	
+	colorBg = ColorBlend(colorBlack, colorDarkGrey, 0.9); //ColorBlend(colorBlack, colorGrey50, 0.2);
+	colorFg = ColorBlend(colorWhite, colorLime, 0.7); //ColorBlend(colorGreen, colorWhite, 0.1);
+	//coloralt = ColorBlend(colorGreen, colorDarkGrey, 0.75);
+	coloralt = ColorBlend(colorGreen, colorBg, 0.8); bgcolor = colorbg; 
+	GfxSetBkColor(colorbg); GfxSelectSolidBrush( colorBg ); 
+	GfxSetTextColor(colorfg); GfxSelectPen(colorFg); 
+	width = 0; height = 5;
+	for(i = 0; (col = StrExtract(sizes, i)) != ""; ++i) width += abs(StrToNum(col));
+	for(lines = 0; StrExtract(table, lines, '\n') != ""; ++lines){}; height = lines*lineheight;
+	margin = 10;
+	width += 2*margin; // margins/borders
+	GfxRoundRect(x0, y0, x0+width, y0+height+lineheight, 6, 6);
+	x0 += margin; 
+	x = x0; y = y0;
+	x = x0; y = y0;
+	for(j = 0; (col = StrExtract(sizes, j)) != ""; ++j) {
+		wi = abs(StrToNum(col)); 
+		GfxDrawText(StrExtract(headers, j), x-2, y0+2, x+wi-2, y0+lineheight, 3);
+		x += wi;
+	}
+	GfxMoveTo(x0, y0+lineheight); GfxLineTo(x0+width-2*margin, y0+lineheight);
+	y += 5;
+	for(i = 0; (line = StrExtract(table, i, '\n')) != ""; ++i) {
+		y += lineheight;
+		x = x0;
+		if (i & 1) bgcolor = coloralt; else bgcolor = colorbg; 
+		GfxSetBkColor(bgcolor); GfxSelectSolidBrush(bgcolor); 
+		if (i & 1) {
+			GfxSelectPen(bgcolor);
+			GfxRectangle(x-0.5*margin, y+lineheight-5, x+width-1.5*margin, y-4);
+			GfxSelectPen(colorfg);
+		}
+		for(j = 0; (col = StrExtract(sizes, j)) != ""; ++j) {
+			wi = StrToNum(col);
+			if (wi > 0) {
+				GfxDrawText(StrExtract(line, j), x, y, x+wi, y+lineheight, StrToNum(StrExtract(align, j)));
+				x += wi;
+			} else {
+				x-= wi;
+			}
+		}
+	}
+	
+	// Empty zones
+	x = x0; y = y0;
+	GfxSetBkColor(bgcolor); GfxSelectSolidBrush(bgcolor); 
+	for(j = 0; (col = StrExtract(sizes, j)) != ""; ++j) {
+		wi = StrToNum(col); 
+		if (wi < 0) GfxRectangle(x-2, y0+2, x-wi-2, y0+height+lineheight+5);
+		//GfxDrawText(StrExtract(headers, j), x-2, y0+2, x+wi-2, y0+lineheight, 3);
+		x += wi;
+	}
+}
+
+////
+x = Param("x0", 200, 0, 1900, 100);
+y = Param("y0", 400, 0, 1000, 50);
+fontsize = Param("font size", 9, 5, 20);
+
+
+if (ibis && ibis.IsConnected()) {
+	if (snapshot) {
+		id = "Scan"+scanum+GetChartID();
+		res = StaticVarGetText(id);
+		if (res == "") StaticVarSetText(id, Scan(scanTest, length, snapshot)); 
+		else GfxText("Scan: "+scanTest+"\n"+res);
+	}
+	else { // streaming
+		table = Scan(scanTest, length, snapshot);
+		headers = "Ticker,Volume";
+		widths = ColumnsWidths(table, headers, 1.15, fontsize); //GfxText("widths: "+widths);
+		//widths = "200,-300,100";
+		//widths = "150,80";
+		GfxDrawTable(table, headers, widths, x, y, fontsize, "0,2");
+	}
+} else {
+	GfxError("Not connected to TWS");
+}
+
+_SECTION_END();

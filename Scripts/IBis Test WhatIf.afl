@@ -1,0 +1,65 @@
+_SECTION_BEGIN("IBis Test WhatIf");
+
+#include_once "Formulas\Custom\IBis.afl";
+#include_once "Formulas\Custom\GfxText.afl";
+#include_once "Formulas\Custom\IBis Test Tickers.afl";
+GfxText("Test of new IBController features: WhatIf(order, contract, fields)\n\n");
+
+
+function ChangeSep(list, sep1, sep2) {
+	return StrReplace(list, ""+sep1, ""+sep2);
+}
+
+order = ParamStr("Order", "action:BUY,size:1,orderType:LMT,limitPrice:1870,TIF:'DAY'");
+favTickers = ParamStr("Favourite Tickers", "FGBL ,ZN   ,CL,NG,M2K,RTY,MES,ES,MCL,YM,MYM");
+tickers = ChangeSep(FindTickers(favTickers), ",", "|");
+contract = ParamList("Contract", "Selected|FGBL SEP 23-EUREX-FUT-EUR|" + tickers);
+if (contract == "Selected") contract = Name();
+
+fields = ParamStr("Fields", "MaintMarginChange,Commission");
+
+what = ""; res = "";
+
+if (IsConnected()) {
+	// id = PlaceOrderEx(order, contract);
+	// StoreId(id, order+','+contract);
+	what = WhatIf(order, contract, fields, false);
+	for(i = 0; (s = StrExtract(fields, i)) != ""; ++i) res = res + StrFormat("%25s %10s\n", s, StrExtract(what, i));
+}
+
+
+GfxText("WhatIf for "+order+",ticker:'"+contract+"'    fields:"+fields+"    result = "+what+"\n"+res);
+
+//////////////////////////////////// Compute necessary margin per lot to open a position in RegT
+
+function GetMargin(contract, recompute) {
+	local fields, order, what, n;
+
+	order = "action:BUY,size:1,orderType:'MKT',TIF:'GTC'";
+	fields = "InitMarginChange";
+	what = WhatIf(order, contract, fields, recompute); 
+	if (what == "") what = WhatIf(order, contract, fields, recompute); // sometimes error 'unspecified exchange' -> retry
+
+	return StrToNum(what);
+}
+
+recompute = ParamTrigger("Recompute Margin", " [ CLICK ONCE TO RECOMPUTE ] ");
+
+if (contract == "Selected") contract = Name();
+margin = GetMargin(contract, recompute);
+
+GfxText("Init Margin for '"+contract+"': "+margin);
+GfxText("Init Margin for '"+Name()+"': "+GetMargin(Name(),0));
+
+////////////////////////////////////
+
+procedure AskDetails(ticker, fields) {
+	local txt;
+	
+	txt = ContractDetails(ticker, fields);
+	GfxText("Contract details for "+ticker+": "+fields+" = "+txt);
+}
+
+AskDetails("MRBU3-NYMEX-FUT", "localSymbol,exchange,sectype,currency,conid,mintick");
+
+_SECTION_END();

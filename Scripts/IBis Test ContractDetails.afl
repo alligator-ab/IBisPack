@@ -1,0 +1,124 @@
+_SECTION_BEGIN("IBis ContractDetails Test");
+#include_once "Formulas\Custom\GfxText.afl";
+
+Title = "Test of new IBController features: ContractDetails() various forms\n\n";
+
+ibis = 0;
+ibis = GetTradingInterface("IBis");
+
+
+procedure GfxDrawContractDetails(x, y, wi, he, contracts, fields) {
+	global ibis;
+	local i,j,num,w,numFields,width,height;
+	
+	num = 0; while(StrExtract(contracts, num) != "") ++num;
+	numFields = 0; while(StrExtract(fields, numFields) != "") ++numFields;
+	w = wi; // he = 30;
+	width = w*(numFields+2)+10; height = he*num+1.5*he;
+
+	// frame
+	GfxRoundRect(x, y, x+width, y+height, 6, 6);
+	// contracts' list/entries
+	for(i = 0; (s = StrExtract(contracts, i)) != ""; ++i) {
+		GfxDrawText(s, x+15, y+he*(i+1)+10, x+2*w-5, y+he*(i+2)+0, 0|4);
+	}
+	// headers
+	GfxDrawText("Ticker", x+5, y+5, x+2*w-5, y+he-5, 1|4);
+	for(i = 0; (s = StrExtract(fields, i)) != ""; ++i) {
+		GfxDrawText(StrLeft(s,12), x+w*(i+2)+5, y+5, x+w*(i+3)-5, y+he*1.1, 1|4);
+	}
+	// content
+	GfxMoveTo(x+10,y+he); GfxLineTo(x+width-10, y+he);
+	x += 2*w; y += he*1.1;
+	for(i = 0; i < num; ++i) {
+		ticker = StrExtract(contracts, i);
+		details = ibis.ContractDetails(ticker, fields);
+		for(j = 0; j < numFields; ++j) {
+			field = StrExtract(details, j);
+			GfxDrawText(field, x+w*(j+0)+5, y+i*he+5, x+w*(j+1)-5, y+i*he+he, 2|4);
+		}
+	}
+	
+}
+
+chartID = GetChartID();
+
+function findTicker(prefix) {
+	global chartID;
+	local p, n, i, s, result;
+	
+	prefix = StrToUpper(StrTrim(prefix," ",3));
+	p = StaticVarGetText("Product"+chartID);
+	n = StrLen(prefix);
+	if (prefix == "") 
+		result = Name();
+	else if (StrLeft(p, n)==prefix)
+		result = p; 
+	else {
+		list = CategoryGetSymbols(categoryAll, 0);
+		for(i = 0; ((p = StrExtract(list, i)) != ""); ++i)
+			if (StrLeft(p, n)==prefix) break;
+		result = p;
+		if (p != "") StaticVarSetText("Product"+chartID, p); else {
+			// trying without first letter
+			for(i = 0; ((p = StrExtract(list, i)) != ""); ++i)
+				if (StrLeft(StrRight(p,StrLen(p)-1), n)==prefix) break;
+			result = p;
+			if (p != "") StaticVarSetText("Product"+chartID, p);
+		}
+	}
+	return result;
+}
+
+if (ibis && ibis.IsConnected()) {
+
+fields = ParamStr("contract details/fields", "conId,minTick,multiplier,symbol,localSymbol,tradingClass,expiry,exchange,primaryExchange,currency,secType");
+fields = "conId,minTick,multiplier,symbol,localSymbol,tradingClass,lastTradeDateOrContractMonth,strike,exchange,primaryExchange,currency,secType"; //DEBUG
+
+contracts = ParamStr("contracts", 
+		"IBM|SR3|ES|CL|APVO-!NASDAQ|516099541|conId:516099541"
+	+ 	"|ES|EUR.USD-IDEALPRO-CASH|AXP|AMGN|568735900|  conId:568735900|568735900|ZN   "
+	+ 	"|ZT   |AAPL|FGBL|GBL 202309-EUREX-FUT-EUR"
+	+	"|SPX   230317C03900000-SMART-OPT|GBL   230224C00138000-EUREX-FOP-EUR"
+);
+//* // DEBUG
+contracts = 
+		"IBM|SR3|ES|CL|APVO-!NASDAQ|516099541|conId:516099541"
+	+ 	"|ES|EUR.USD-IDEALPRO-CASH|AXP|AMGN|568735900|  conId:568735900|568735900|ZN   "
+	+ 	"|ZT |AAPL|EUR.USD|CL|FGBL|GBL 202303-EUREX-FUT-EUR|CL 202303-NYMEX-FUT"
+	+	"|SPX   230317C03900000-CBOE-OPT|OGB1  20230224C00138000-EUREX-FOP-EUR"
+	+ 	"|BTC-PAXOS-CRYPTO-USD|SPY-SMART/ARCA-STK|DAX-EUREX-IND-EUR|IBDE40-SMART-CFD-EUR|GBL-EUREX-CONTFUT-EUR"
+	+	"|OGB1 20230203/C/138/1000-EUREX-FOP-EUR|912828C57-SMART-BOND|VINIX-FUNDSERV-FUND-USD|XAUUSD-SMART-CMDTY"
+	+ 	"|SR3 202312-CME-FUT|SOFR3 202312-CME-FUT|FST3 SEP 23-EUREX-FUT-EUR|AF2 20230120/P/0.9-MONEP-OPT-EUR"
+	+	"|GOOG  230317C00095000-FWB-WAR|GOOG 202303/C/1500/0.01-FWB-WAR|B881G-SBF-IOPT-EUR"
+;
+//contracts = ParamStr("contracts", contracts);
+//*/
+res = "Fields: "+fields+"\n";
+for(i = 0; (s = StrExtract(contracts, i, '|')) != ""; ++i) {
+	ticker = FindTicker(s); if (ticker == "") ticker = s;
+	res += "ContractDetails("+ticker+") = "+ibis.ContractDetails(ticker, fields)+"\n";
+}
+GfxText(res);
+////
+fontsize = Param("Font size", 9, 7, 15);
+GfxSelectFont("Consolas", fontsize);
+colorBg = ColorBlend(colorBlack, colorDarkGrey, 0.9); //ColorBlend(colorBlack, colorGrey50, 0.2);
+colorFg = ColorBlend(colorWhite, colorLime, 0.7); //ColorBlend(colorGreen, colorWhite, 0.1);
+GfxSelectSolidBrush( colorBg ); GfxSelectPen( colorBg ); 
+GfxSetTextColor(colorfg); GfxSetBkColor(colorbg); GfxSelectPen(colorfg, 1); 
+
+x = Param("x0", 100, 0, 1900, 100);
+y = Param("y0", 100, 0, 1000, 50);
+
+s = StrExtract(contracts, 0, '|');
+ticker = FindTicker(s); if (ticker == "") ticker = s;
+list = ticker;
+for(i = 1; (s = StrExtract(contracts, i, '|')) != ""; ++i) {
+	ticker = FindTicker(s); if (ticker == "") ticker = s;
+	list = list + "," + ticker;
+}
+GfxDrawContractDetails(x, y, 120, 2.8*fontsize, list, fields);
+
+} else GfxError("NOT CONNECTED"); // ibis
+_SECTION_END();

@@ -1,0 +1,670 @@
+/*
+IBis API Wrapper - DO NOT CALL IBis API DIRECTLY, ALWAYS WRAP API CALLS
+
+function IBisPriceToStr(price);	// returns a string of price correctly rounded
+function IBisFracQuote(price); 	// fractional or decimal quotation of price
+
+function IsConnected();
+function PlaceOrder(product, action, size, type, lmtprice, auxprice, tif, transmit, minTick);
+		lmtPrice and auxPrice can be either strings or numbers
+function ModifyOrder(id, product, action, size, type, lmtprice, auxprice, tif);
+procedure CancelOrder(id);
+procedure CancelAllPendingOrders(product);
+procedure CloseAllOpenPositions(product);
+procedure Transmit(id);
+
+procedure ReConnect();
+function SetAccount(account);
+function GetAccountValue(field);
+
+function GetStatus(id, includeFIlled);
+function GetPositionSize(ticker);
+function GetPositionList();
+function GetPositionInfo(ticker, field);
+function GetExecList(type, filt);
+function GetExecInfo(id, field);
+
+////////// API EXTENDING IBCONTROLLER'S //////////////////////
+
+function GetOrdersList(field, status);	// GetOrdersList("ID","") returns list of all ids
+function GetOrderInfo(id, fields);
+function GetPnL(account, field, filt);
+function PlaceOrderEx(order, contract, transmit);
+function ContractDetails(ticker, fields);
+function MarketRule(ticker, exchange);
+function GlobalCancel();
+function GetCompletedOrders(orderIdList);
+function LastErrors(maxNum, what);
+
+///////// ADVANCED API LINE 250+
+
+function HistoricalData(ticker, endDateTime, duration, barsize, whatToshow, useRTH, formatDate, keepUpToDate, destFile);
+function MarketDepth(ticker, rows, isSmartDepth);
+function CancelMarketDepth(ticker);
+procedure SubscribeRTVolume(ticker, clientId);
+procedure CancelRTVolume(ticker, clientId);
+function GetRTVolume(ticker, clientId);
+function SubscribeMktData(ticker, ticklist, clientId);
+procedure CancelMktData(ticker, ticklist, clientId);
+function GetMktData(ticker, ticklist, clientId);
+function RunTape(ticker, length, minSize);
+procedure StopTape(ticker);
+function MatchingSymbols(ticker);
+function RTData(ticker, fields, genericTicks);
+function OptionChain(underlying, exchange, underSecType, conId);
+procedure ExerciseOptions(ticker, action, quantity, account, override);
+function ImpliedVolatility(ticker, optionPrice, underPrice, IVOptions);
+function OptionPrice(ticker, volatility, underPrice, optOptions);
+function HistogramData(ticker, useRTH, period, boolRefresh);
+function Scanner(subscription, options, filt, boolSnapshot);
+function Stats(ticker, options, maxlength);
+function WshMetaData();
+function WshEventData(conId, from, to, filt, totalLimit);
+function SoftDollarTiers(tier);
+function Exec(cmd); // Try Exec("Help");
+function WhatIf(order, contract, fields, forceRecompute);
+
+function RequestFA(faDataType);
+function ReplaceFA(faDataType, strXMLAlloc);
+
+//function Headlines(sNewsProviderCode, symbolOrArticleId, maxHeadlines); // if maxHeadlines == 0, 2nd arg MUST BE an articleId
+	// RECOMMENDED: USE GetHeadlines() and GetArticle() instead of Headlines()
+function GetHeadlines(maxHeadlines, symbol, newsProviderCode);
+function NewsArticle(articleId);
+
+function Launch(strApplication);
+function IBisSystem(strCmd);	// this name avoids name clash with System, often used in AFL scripts
+
+function HeadTimestamp(ticker, whatToShow);
+function HistoricalSchedule(contract, endDateTime, duration);
+
+function SubscribeRTBars(ticker, barSize, whatToShow, onlyRTH);	// returns a request id (int)
+function CancelRTBars(requestId);	// cancel subscription, arg is the numerical value returned by Subscribe...
+function GetRTBars(requestId, maxLastBars);
+
+function SaveAccount(filename, accountCode, fields);
+function GetAccountSummary(group, tags);
+
+function PlaceBatchOrders(batchOrders, opt, delay);
+function GetBatchOrderStatus(metaOrderId, fieldsList);
+function Spread(ticker1, ticker2, ratio1, ratio2, ics);
+function Hedge(parentOrderId, action, ticker, hedgeType, hedgeParam);
+function PlaceBracketOrder(action, size, ticker, price, stopPrice, targetPrice, delay);
+function GetMetaOrdersList(type);
+function GetMetaOrdersInfo(metaOrderId, fields);
+
+*/
+_logOrderFile = "IBisOrdersList.txt";
+ibis = GetTradingInterface("IBis");
+
+function IsConnected() {
+	global ibis;
+	return ibis.IsConnected();
+}
+
+function IBisPriceToStr(price) {
+	local res, f, fmt;
+	f = frac(512*frac(price));
+	if (f == 0) fmt = "%.12g"; else fmt = "%.7g"; 
+	res = StrFormat(fmt, price);
+	return res;
+}
+
+function IBisFracQuote(price) {	// Only for CBOT treasury futures ! if (StrFind("CBOT", ticker)) ...
+	local res, f, g, fmt, n1, n2, ch;
+	f = frac(512*frac(price));
+	if (f == 0) { 	// fractional quotation
+		fmt = "%.12g"; 
+		g = frac(price);
+		n1 = floor(32*g); n2 = round(8*frac(g*32));
+		ch = StrExtract(" ,1,2,3,5,6,7,8", n2);
+		res = StrFormat("%.0f'%02.0g%s", int(price), n1, ch);
+	} else { 		// decimal quotation
+		fmt = "%.7g"; 
+		res = StrFormat(fmt, price);
+	}
+	return res;
+}
+
+procedure IBisLog(s) {
+	global _logOrderFile;
+	if (_logOrderFile != "") {
+		fh = fopen(_logOrderFile, "a");
+		if (fh) {
+			fputs(("time:"+Now(0)+",")+s, fh);
+			fclose(fh);
+		}
+	}
+}
+
+function PlaceOrder(product, action, size, type, lmtprice, auxprice, tif, transmit, minTick) {
+	global ibis;
+	local id;
+	id = 0;
+	if (ibis.IsConnected()) {
+		id = ibis.PlaceOrder(product, action, size, type, lmtprice, auxprice, tif, transmit, mintick); // price or oPrice work !
+		s = StrFormat("what:PlaceOrder,orderId:%s,ticker:'%s',action:%s,size:%s,orderType:'%s',limitPrice:%s,auxPrice:%s,TIF:'%s',Transmit:%f,TickSize:%s",
+				""+id,product,action,StrFormat("%7g",size),type,IBisPriceToStr(lmtprice),IBisPriceToStr(auxprice),
+					tif,transmit,IBisPriceToSTr(minTick));
+		IBisLog(s);
+	}
+	return id;
+}
+
+function ModifyOrder(id, product, action, size, type, lmtprice, auxprice, tif) {
+	global ibis;
+	local s;
+	if (ibis.IsConnected()) {
+		id = ibis.ModifyOrder(id, product, action, size, type, lmtprice, auxprice, tif); // price or oPrice work !
+		s = StrFormat("what:ModifyOrder,orderId:%s,ticker:'%s',action:%s,size:%s,orderType:'%s',limitPrice:%s,auxPrice:%s,TIF:'%s'",
+				""+id,product,action,StrFormat("%7g",size),type,IBisPriceToStr(lmtprice),IBisPriceToStr(auxprice),tif);
+		IBisLog(s);
+	}
+	return id;
+}
+
+procedure CancelOrder(id) {
+	global ibis;
+	if (ibis.IsConnected()) {
+		ibis.CancelOrder(id);
+		IBisLog(StrFormat("what:CancelOrder,orderId:%s", ""+id));
+	}
+}
+
+procedure CancelAllPendingOrders(product) {
+	global ibis;
+	if (ibis.IsConnected()) {
+		if (product != "") ibis.CancelAllPendingOrders(product); else ibis.CancelAllPendingOrders(); 
+		IBisLog(StrFormat("what:CancelAllPendingOrders,product:'%s'", product));
+	}
+}
+
+procedure CloseAllOpenPositions(product) {
+	global ibis;
+	if (ibis.IsConnected()) {
+		if (product != "") ibis.CloseAllOpenPositions(product); else ibis.CloseAllOpenPositions(); 
+		IBisLog(StrFormat("what:CloseAllOpenPositions,product:'%s'", product));
+	}
+}
+
+procedure Transmit(id) {
+	global ibis;
+	if (ibis.IsConnected())	{
+		ibis.Transmit(id);
+		IBisLog(StrFormat("what:Transmit,id:%s", ""+id));
+	}
+}
+
+function GetPositionSize(ticker) {
+	global ibis;
+	local pos;
+	if (ibis.IsConnected()) pos = ibis.GetPositionSize(ticker); else pos = 0;
+	return pos;
+}
+
+procedure ReConnect() {
+	global ibis;
+	if (ibis.IsConnected())	{ ibis.ReConnect(); IBisLog("what:ReConnect"); }
+}
+
+function SetAccount(account) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{ res = ibis.SetAccount(account); IBisLog("what:SetAccount,account:%s"); } else res = False;
+	return res;
+}
+
+function GetStatus(id, includeFilled) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (includeFilled != "") res = ibis.GetStatus(id, includeFilled); else res = ibis.GetStatus(id);
+	} else res = "";
+	return res;
+}
+
+function GetPositionList() {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetPositionList(); else res = "";
+	return res;
+}
+
+function GetPositionInfo(ticker, field) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetPositionInfo(ticker, field); else res = "";
+	return res;
+}
+
+function GetExecList(type, filt) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetExecList(type, filt); else res = "";
+	return res;
+}
+
+function GetExecInfo(id, field) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetExecInfo(id, field); else res = "";
+	return res;
+}
+
+function GetOrdersList(field, oStatus) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetOrdersList(field, oStatus); else res = "";
+	return res;
+}
+
+function GetOrderInfo(id, fields) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetOrderInfo(id, fields); else res = "";
+	return res;
+}
+
+function GetPnL(account, field, filt) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetPnL(account, field, filt); else res = "";
+	return res;
+}
+
+function PlaceOrderEx(order, contract, transmit) {
+	global ibis;
+	local s, id;
+/* // OLD
+	s = StrFormat("%s,%s,Transmit:%.0f", order, contract, transmit);
+	if (ibis.IsConnected())	{
+		id = ibis.PlaceOrderEx(s); IBisLog(StrFormat("what:PlaceOrderEx,arg:%s", s));
+	} else id = "";
+//*/ // NEW
+	s = StrFormat("%s,Transmit:%.0f", order, transmit);
+	if (ibis.IsConnected())	{
+		id = ibis.PlaceOrderEx(s, contract); IBisLog(StrFormat("what:PlaceOrderEx,order:%s,contract:%s", s, contract));
+	} else id = "";
+	return id;
+}
+
+function GetAccountValue(field) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.GetAccountValue(field); else res = "";
+	return res;
+}
+
+function ContractDetails(ticker, fields) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.ContractDetails(ticker, fields); else res = "";
+	return res;
+}
+
+function MarketRule(ticker, exchange) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (exchange != "") res = ibis.MarketRule(ticker, exchange); else res = ibis.MarketRule(ticker);
+	} else res = "";
+	return res;
+}
+
+procedure GlobalCancel() {
+	global ibis;
+	if (ibis.IsConnected())	{ ibis.GlobalCancel(); IBisLog("what:GlobalCancel"); }
+}
+
+function GetCompletedOrders(orderIdList) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (orderIdList != "") res = ibis.GetCompletedOrders(orderIdList); else res = ibis.GetCompletedOrders();
+	} else res = "";
+	return res;
+}
+
+function LastErrors(maxNum, what) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.LastErrors(maxNum, what); else res = "";
+	return res;
+}
+//////////////////////////////////////////////////////// ADVANCED ///////////////////////////////////////////////////
+/*
+
+*/
+function HistoricalData(ticker, endDateTime, duration, barsize, whatToshow, useRTH, formatDate, keepUpToDate, destFile) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.HistoricalData(ticker, endDateTime, duration, barsize, whatToshow, useRTH, formatDate, keepUpToDate, destFile); 
+	else res = "";
+	return res;
+}
+
+function MarketDepth(ticker, rows, isSmartDepth) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.MarketDepth(ticker, rows, isSmartDepth); else res = "";
+	return res;
+}
+
+function CancelMarketDepth(ticker) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.CancelMarketDepth(ticker); else res = "";
+	return res;
+}
+
+procedure SubscribeRTVolume(ticker, clientId) {
+	global ibis;
+	if (ibis.IsConnected())	{
+		if (clientId != "") ibis.SubscribeRTVolume(ticker, clientId); else ibis.SubscribeRTVolume(ticker);
+	}
+}
+
+procedure CancelRTVolume(ticker, clientId) {
+	global ibis;
+	if (ibis.IsConnected())	{
+		if (clientId != "") ibis.CancelRTVolume(ticker, clientId); else ibis.CancelRTVolume(ticker);
+	}
+}
+
+function GetRTVolume(ticker, clientId) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (clientId != "") res = ibis.GetRTVolume(ticker, clientId); else res = ibis.GetRTVolume(ticker);
+	} else res = "";
+	return res;
+}
+
+function SubscribeMktData(ticker, ticklist, clientId) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (clientId != "") res = ibis.SubscribeMktData(ticker, ticklist, clientId); else res = ibis.SubscribeMktData(ticker, ticklist);
+	} else res = 0;
+}
+
+procedure CancelMktData(ticker, ticklist, clientId) {
+	global ibis;
+	if (ibis.IsConnected())	{
+		if (clientId != "") ibis.CancelMktData(ticker, ticklist, clientId); else ibis.CancelMktData(ticker, ticklist);
+	}
+}
+
+function GetMktData(ticker, ticklist, clientId) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (clientId != "") res = ibis.GetMktData(ticker, ticklist, clientId); else res = ibis.GetMktData(ticker, ticklist);
+	} else res = "";
+	return res;
+}
+
+function RunTape(ticker, length, minSize) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.RunTape(ticker, length, minSize); else res = "";
+	return res;
+}
+
+procedure StopTape(ticker) {
+	global ibis;
+	if (ibis.IsConnected())	ibis.StopTape(ticker);
+}
+
+function MatchingSymbols(ticker) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.MatchingSymbols(ticker); else res = "";
+	return res;
+}
+
+function RTData(ticker, fields, genericTicks) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{
+		if (genericTicks != "") res = ibis.GetRTData(ticker, fields, genericTicks); else res = ibis.GetRTData(ticker, fields);
+	} else res = "";
+	return res;
+}
+
+/////////////////////////////// Options
+function OptionChain(underlying, exchange, underSecType, conId) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.OptionChain(underlying, exchange, underSecType, conId); else res = "";
+	return res;
+}
+
+procedure ExerciseOptions(ticker, action, quantity, account, override) {
+	global ibis;
+	if (ibis.IsConnected())	{
+		ibis.ExerciseOptions(ticker, action, quantity, account, override);
+		IBisLog(StrFormat("what:ExerciseOptions,ticker:'%s',action:%s,quantity:%g,account:%s,override:%.0f", 
+			ticker, action, quantity, account, override));
+	}
+}
+
+function ImpliedVolatility(ticker, optionPrice, underPrice, IVOptions) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.ImpliedVolatility(ticker, optionPrice, underPrice, IVOptions); else res = "";
+	return res;
+}
+
+function OptionPrice(ticker, volatility, underPrice, optOptions) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.OptionPrice(ticker, volatility, underPrice, optOptions); else res = "";
+	return res;
+}
+
+////////////////// VARIOUS
+function HistogramData(ticker, useRTH, period, boolRefresh) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.HistogramData(ticker, useRTH, period, boolRefresh); else res = "";
+	return res;
+}
+
+function Scanner(subscription, options, filt, boolSnapshot) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.Scanner(subscription, options, filt, boolSnapshot); else res = "";
+	return res;
+}
+
+function Stats(ticker, options, maxlength) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.Stats(ticker, options, maxlength); else res = "";
+	return res;
+}
+
+function WshMetaData() {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.WshMetaData(); else res = "";
+	return res;
+}
+
+function WshEventData(conId, from, to, filt, totalLimit) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.WshEventData(conId, from, to, filt, totalLimit); else res = "";
+	return res;
+}
+
+function SoftDollarTiers(tier) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.SoftDollarTiers(tier); else res = "";
+	return res;
+}
+
+function Exec(cmd) { 
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.Exec(cmd); else res = "";
+	return res;
+}
+
+function WhatIf(order, contract, fields, forceRecompute) {
+	global ibis;
+	local res; // order must have transmit = true if whatif == true // done by IBis
+	if (ibis.IsConnected())	res = ibis.WhatIf(order, contract, fields, forceRecompute); else res = "";
+	return res;
+}
+
+function RequestFA(faDataType) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.RequestFA(faDataType); else res = "";
+	return res;
+}
+
+function ReplaceFA(faDataType, strXMLAlloc) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	{ ibis.ReplaceFA(faDataType, strXMLAlloc); res = 0; } else res = -1;
+	return res;
+}
+/*
+function Headlines(sNewsProviderCode, symbolOrArticleId, maxHeadlines) {
+	global ibis;
+	local res;
+	if (ibis.IsConnected())	res = ibis.Headlines(sNewsProviderCode, symbolOrArticleId, maxHeadlines); else res = "";
+	return res;
+}
+
+function GetHeadlines(sNewsProviderCode, symbol, maxHeadlines) {
+	if (maxHeadlines <= 0) maxHeadlines = 1;	// most recent, force 2nd arg == Symbol NOT an articleId
+	return Headlines(sNewsProviderCode, symbol, maxHeadlines);
+}
+//*/
+function NewsArticle(articleId) {
+	global ibis;
+	local res;
+	if (IsConnected())res = ibis.NewsArticle(articleId); else res = "";
+	return res;
+}
+
+function Launch(strApplication) {
+	global ibis;
+	local res;
+	//if (ibis.IsConnected())	
+	res = ibis.Exec("launch("+ strApplication +")"); //else res = "";
+	return res;
+}
+
+function IBisSystem(strCmd) {	// WARNING: The name System may be used in AFL scripts -> Error
+	global ibis;
+	local res;
+	if (IsConnected())	res = ibis.Exec(StrFormat("System('%s')", strCmd)); else res = "";
+	return res;
+}
+
+function HeadTimestamp(ticker, whatToShow) {
+	global ibis;
+	local res;
+	if (IsConnected())	res = ibis.HeadTimestamp(ticker, whatToShow); else res = "";
+	return res;
+}
+
+function SubscribeRTBars(ticker, barSize, whatToShow, onlyRTH) {
+	global ibis;
+	local res;
+	if (barSize == 0) barSize = 5; 
+	if (whatToShow == "") whatToShow = "TRADES";
+	onlyRTH = (onlyRTH != 0);
+	if (IsConnected())	res = ibis.SubscribeRealTimeBars(ticker, barSize, whatToShow, onlyRTH); else res = 0;
+	return res;
+}
+
+function CancelRTBars(requestId) {
+	global ibis;
+	local res;
+	if ((requestId > 0) && IsConnected())	{ ibis.CancelRealTimeBars(requestId); res = 0; } else res = -1;
+	return res;
+}
+
+function GetRTBars(requestId, maxLastBars) {
+	global ibis;
+	local res;
+	if ((requestId > 0) && IsConnected())	res = ibis.RealTimeBars(requestId, maxLastBars); else res = "";
+	return res;
+}
+
+function ExecDetails(orderId) {
+	global ibis;
+	local res;
+	if ((orderId != 0) && IsConnected())	res = ibis.ExecDetails(orderId); else res = "";
+	return res;
+}
+
+function Headlines(limit, symbolOrArticleId, newsProvider) {
+	global ibis;
+	return ibis.Headlines(limit, symbolOrArticleId, newsProvider);
+}
+
+function SaveAccount(filename, accountCode, fields) {
+	global ibis;
+	return ibis.SaveAccount(filename, accountCode, fields);
+}
+
+function GetAccountSummary(group, tags) {
+	global ibis;
+	return ibis.GetAccountSummary(group, tags);
+}
+
+function HistoricalSchedule(contract, endDateTime, duration) {
+	global ibis;
+	local res;
+	if (IsConnected())	res = ibis.HistoricalSchedule(contract, endDateTime, duration); else res = "";
+	return res;
+}
+
+function PlaceBatchOrders(batchOrders, opt, delay) {
+	global ibis;
+	local res;
+	if (IsConnected())	res = ibis.PlaceBatchOrders(batchOrders, opt, delay); else res = "";
+	return res;
+}
+
+function GetBatchOrderStatus(metaOrderId, fieldsList) {
+	global ibis;
+	local res;
+	if (IsConnected())	res = ibis.GetBatchOrderStatus(metaOrderId, fieldsList); else res = "";
+	return res;
+}
+
+function Spread(ticker1, ticker2, ratio1, ratio2, ics) {
+	global ibis;
+	return ibis.Spread(ticker1, ticker2, ratio1, ratio2, ics);
+}
+
+function Hedge(parentOrderId, action, ticker, hedgeType, hedgeParam) {
+	global ibis;
+	return ibis.Hedge(parentOrderId, action, ticker, hedgeType, hedgeParam);
+}
+
+function PlaceBracketOrder(action, size, ticker, price, stopPrice, targetPrice, delay) {
+	global ibis;
+	local res;
+	if (IsConnected()) res = ibis.PlaceBracketOrder(action, size, ticker, price, stopPrice, targetPrice, delay); else res = "";
+	return res;
+}
+
+function GetMetaOrdersList(type) {
+	global ibis;
+	return ibis.GetMetaOrdersList(type);
+}
+
+function GetMetaOrdersInfo(metaOrderId, fields) {
+	global ibis;
+	return ibis.GetMetaOrdersInfo(metaOrderId, fields);
+}

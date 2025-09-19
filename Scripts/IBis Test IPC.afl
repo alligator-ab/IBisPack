@@ -1,0 +1,155 @@
+_SECTION_BEGIN("IBis Test IPC");
+
+#include_once "Formulas\Custom\GfxText.afl";
+GfxClear(colorWhite);
+ibis = GetTradingInterface("IBis");
+
+procedure testStoreFetch(datatest) {
+	local i, s, err, errlist, key, value;
+	
+	for(i = 0; (s = StrExtract(datatest, i)) != ""; ++i) {
+		key = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		ibis.StoreData(key, value); //, 0);
+	}
+
+	err = 0; errlist = "";
+	for(i = 0; (s = StrExtract(datatest, i)) != ""; ++i) {
+		key = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		found = ibis.FetchData(key);
+		if (found != value) { 
+			GfxError("found "+found+" instead of "+value);
+			if (err == 0) errlist = ""+i; else errlist = errlist+","+i;
+			++err; 
+		}
+	}
+	
+	if (err) GfxError("Store/FetchData() Test: "+err+" error(s) at test(s): "+errlist);
+	else GfxText("Store/FetchData() Test: no error");
+
+}
+
+procedure testClearData(datatest) {
+	local i, s, err, errlist, key, value;
+	// 1: store
+	for(i = 0; (s = StrExtract(datatest, i)) != ""; ++i) {
+		key = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		ibis.StoreData(key, value); //, 0);
+	}
+	
+	// 2: clear
+	err = 0; errlist = "";
+	for(i = 0; (s = StrExtract(datatest, i)) != ""; ++i) {
+		key = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		found = ibis.FetchData(key, true);
+		if (found != value) { 
+			GfxError("found "+found+" instead of "+value);
+			if (err == 0) errlist = ""+i; else errlist = errlist+","+i;
+			++err; 
+		}
+	}
+	
+	// 3: check
+	for(i = 0; (s = StrExtract(datatest, i)) != ""; ++i) {
+		key = StrTrim(StrExtract(s, 0, ':'), ""); 
+		value = ibis.FetchData(key); 
+		if (value != "") {
+			GfxError("key "+key+" not cleared");
+			if (err == 0) errlist = ""+i; else errlist = errlist+","+i;
+			++err;
+		}
+	}
+	
+	if (err) GfxError("Store/ClearData(== FetchData(.,true)) Test: "+err+" error(s) at test(s): "+errlist);
+	else GfxText("Store/Clear() Test: no error");
+
+}
+
+procedure testSendReceive(msgtest) {
+	local i, s, err, errlist, site, value, recvd;
+	
+	// Send
+	for(i = 0; (s = StrExtract(msgtest, i)) != ""; ++i) {
+		site = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		ibis.SendMessage(site, value);
+	}
+	
+	// Recv
+	err = 0; errlist = "";
+	for(i = 0; (s = StrExtract(msgtest, i)) != ""; ++i) {
+		site = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		recvd = ibis.ReceiveMessage(site);
+		if (recvd != value) {
+			GfxError("received "+recvd+" instead of "+value);
+			if (err == 0) errlist = ""+i; else errlist = errlist+",i";
+			++err; 
+		}
+	}
+	
+	if (err) GfxError("Send/ReceiveMessage() Test: "+err+" error(s)");
+	else GfxText("Send/ReceiveMessage() Test: no error");
+}
+
+
+procedure testSend(msgtest) {
+	local i, s, err, errlist, site, value, recvd;
+	
+	// Send
+	for(i = 0; (s = StrExtract(msgtest, i)) != ""; ++i) {
+		site = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		ibis.SendMessage(site, value);
+	}
+	GfxText("SendMessage() Test: done - use Receive for results");
+}
+
+
+procedure testReceive(msgtest) {
+	local i, s, err, errlist, site, value, recvd;
+	
+	// Recv
+	err = 0; errlist = "";
+	for(i = 0; (s = StrExtract(msgtest, i)) != ""; ++i) {
+		site = StrTrim(StrExtract(s, 0, ':'), ""); value = StrTrim(StrExtract(s, 1, ':'), "");
+		recvd = ibis.ReceiveMessage(site);
+		if (recvd != value) {
+			GfxError("received "+recvd+" instead of "+value);
+			if (err == 0) errlist = ""+i; else errlist = errlist+",i";
+			++err; 
+		}
+	}
+	
+	if (err) GfxError("ReceiveMessage() Test: "+err+" error(s)");
+	else GfxText("ReceiveMessage() Test: no error");
+}
+
+//////////////
+
+GfxText("Test of IBis features - IPC\n");
+
+if (ibis) GfxText("BrokerIBis OK"); else GfxError("BrokerIBis not found");
+if (!ibis.IsConnected()) GfxError("IBis NOT connected to TWS");
+
+_N( datatest = "key1:value1,key2:value2,key3:value3" );
+_N( msgtest = "app1:msg1,app1:msg2,app2:msg3,app2:msg4" );
+
+if (ParamTrigger("Test StoreData()", " [ CLICK ONCE TO TEST STORE/FETCH ] ")) {
+	testStoreFetch(datatest);
+}
+
+if (ParamTrigger("Test Send/ReceiveMessage()", " [ CLICK ONCE TO TEST SEND/RECEIVE ] ")) {
+	testSendReceive(msgtest);
+}
+
+if (ParamTrigger("Test Store && Clear Data", " [ CLICK ONCE TO TEST STORE/CLEAR ] ")) {
+	testClearData(datatest);
+}
+
+if (ParamTrigger("SendMessage()", " [ CLICK ONCE TO SEND MESSAGES ] ")) {
+	testSend(msgtest);
+}
+
+if (ParamTrigger("ReceiveMessage()", " [ CLICK ONCE TO RECEIVE MESSAGES ] ")) {
+	testReceive(msgtest);
+}
+
+
+_SECTION_END();
